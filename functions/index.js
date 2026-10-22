@@ -19,24 +19,38 @@ const DAILY_CAP = 250;                       // Claude calls per day, both accou
 const progressDoc = () => db.doc('emailCoach/progress');
 const sessions = () => db.collection('emailCoachSessions');
 
+// Every object in a schema must say additionalProperties:false for guaranteed-shape JSON.
+export function strict(schema) {
+  if (Array.isArray(schema)) return schema.map(strict);
+  if (!schema || typeof schema !== 'object') return schema;
+  const out = {};
+  for (const [k, v] of Object.entries(schema)) out[k] = k === 'properties' ? Object.fromEntries(Object.entries(v).map(([pk, pv]) => [pk, strict(pv)])) : strict(v);
+  if (out.type === 'object') out.additionalProperties = false;
+  return out;
+}
+
+// Sonnet 5.5 rejects forced tool use, so answers come back as JSON matching the schema (structured outputs).
 export async function callClaude(key, { content, tool, maxTokens = 2000, system = P.SYSTEM }) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
     body: JSON.stringify({
-      model: MODEL, max_tokens: maxTokens, system,
+      model: MODEL, max_tokens: maxTokens + 6000, system,
       messages: [{ role: 'user', content }],
-      tools: [tool], tool_choice: { type: 'tool', name: tool.name },
+      output_config: { format: { type: 'json_schema', schema: strict(tool.input_schema) } },
     }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    console.error('Claude error', res.status, JSON.stringify(data).slice(0, 500));
+    console.error('Claude error', res.status, JSON.stringify(data).slice(0, 800));
     throw new HttpsError('unavailable', res.status === 401 ? 'The Claude key isn\'t working. Ask Mom.' : 'The coach couldn\'t answer. Try again in a minute.');
   }
-  const block = (data.content || []).find(b => b.type === 'tool_use');
-  if (!block) throw new HttpsError('internal', 'The coach gave an empty answer. Try again.');
-  return block.input;
+  const block = (data.content || []).filter(b => b.type === 'text').at(-1);
+  try { return JSON.parse(block.text); }
+  catch (e) {
+    console.error('Bad JSON', data.stop_reason, block && block.text && block.text.slice(0, 300));
+    throw new HttpsError('internal', 'The coach gave a garbled answer. Try again.');
+  }
 }
 
 async function countCall() {

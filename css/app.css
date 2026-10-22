@@ -148,3 +148,9 @@ ul.list li>div{display:flex;flex-direction:column;gap:4px;overflow-wrap:anywhere
 .err{color:var(--bad)}
 .celebrate{text-align:center;align-items:center}
 .big{font-size:3rem;line-height:1;color:var(--accent)}
+
+.meter{display:flex;flex-direction:column;gap:6px}
+ul.kinds{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+ul.kinds li{font-size:.78rem;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--chip);color:var(--muted)}
+ul.kinds li.got{background:var(--ok-bg);color:var(--ok)}
+ul.kinds li.got::before{content:'✓ '}

@@ -154,16 +154,32 @@ export const LEVELS = {
   2: { name: 'Draft it, then check', blurb: 'You write the whole email, then the coach checks each part.' },
   3: { name: 'Final check', blurb: 'You write it your way. The coach only looks it over.' },
 };
-export const CLEAN_TO_MOVE_UP = 5;
+// Move up after 15 clean emails out of the last 20 at this level, with variety, so rushing through
+// easy ones doesn't count. A sloppy one costs him but doesn't wipe out his progress.
+export const WINDOW = 20, NEED_CLEAN = 15, NEED_EACH = 3;
+export const KINDS = [['replyAll', 'needed Reply all'], ['ccMom', 'needed CC Mom'], ['multi', 'had 2+ questions']];
+export function tagsFor(mail, momAlreadyOn = false) {
+  return { replyAll: correctReplyType(mail) === 'reply_all', ccMom: !!mail.ccMom && !momAlreadyOn, multi: (mail.asks || []).length >= 2 };
+}
+/** Where he stands at this level. */
+export function standing(p) {
+  const recent = (p && p.recent) || [], clean = recent.filter(r => r.c);
+  const kinds = Object.fromEntries(KINDS.map(([k]) => [k, clean.filter(r => r[k]).length]));
+  const ready = clean.length >= NEED_CLEAN && KINDS.every(([k]) => kinds[k] >= NEED_EACH);
+  return { clean: clean.length, of: recent.length, kinds, ready };
+}
 
 /** A session is clean when every tap decision was right the first time and no writing step needed 3+ tries. */
 export function isClean(s) {
   return !!s && s.finished && Object.values(s.firstTry || {}).every(Boolean) && Object.values(s.tries || {}).every(n => n < 3);
 }
 
-/** Progress after a finished session. Parent overrides (levelSetByParent) still move up on their own later. */
-export function nextProgress(p, clean) {
-  const level = p.level || 1, streak = clean ? (p.cleanStreak || 0) + 1 : 0;
-  if (clean && streak >= CLEAN_TO_MOVE_UP && level < 3) return { ...p, level: level + 1, cleanStreak: 0, movedUp: true };
-  return { ...p, level, cleanStreak: streak, movedUp: false };
+/** Progress after a finished session. No-reply emails don't count either way. */
+export function nextProgress(p, clean, tags, counts = true) {
+  const level = p.level || 1;
+  if (!counts) return { ...p, level, movedUp: false };
+  const recent = [...(p.recent || []), { c: !!clean, ...tags }].slice(-WINDOW);
+  const np = { ...p, level, recent, movedUp: false };
+  if (level < 3 && standing(np).ready) return { ...np, level: level + 1, recent: [], movedUp: true };
+  return np;
 }

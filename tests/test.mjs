@@ -129,17 +129,55 @@ t('usableIssues drops anything we cannot show safely', () => {
   assert.deepEqual(got.map(x => x.fragment), ['becuase', 'i will']);
 });
 
-t('levels: clean sessions move him up after 5 in a row; a miss resets', () => {
+t('clean: every tap right first time, no writing step at 3+ tries', () => {
   const clean = { finished: true, firstTry: { replyType: true, ccMom: true }, tries: { body: 1 } };
   assert.equal(R.isClean(clean), true);
   assert.equal(R.isClean({ ...clean, firstTry: { replyType: false } }), false);
   assert.equal(R.isClean({ ...clean, tries: { body: 3 } }), false);
   assert.equal(R.isClean({ ...clean, finished: false }), false);
-  let p = { level: 1, cleanStreak: 0 };
-  for (let i = 0; i < 4; i++) { p = R.nextProgress(p, true); assert.equal(p.level, 1); }
-  p = R.nextProgress(p, true); assert.equal(p.level, 2); assert.equal(p.movedUp, true); assert.equal(p.cleanStreak, 0);
-  p = R.nextProgress(p, true); p = R.nextProgress(p, false); assert.equal(p.cleanStreak, 0); assert.equal(p.level, 2);
-  p = { level: 3, cleanStreak: 4 }; p = R.nextProgress(p, true); assert.equal(p.level, 3);
+});
+
+t('levels: 15 clean of the last 20, with 3+ of each kind', () => {
+  const all = { replyAll: true, ccMom: true, multi: true }, plain = { replyAll: false, ccMom: false, multi: false };
+  let p = { level: 1, recent: [] };
+  for (let i = 0; i < 14; i++) { p = R.nextProgress(p, true, all); assert.equal(p.level, 1); }
+  p = R.nextProgress(p, true, all); assert.equal(p.level, 2); assert.equal(p.movedUp, true); assert.deepEqual(p.recent, []);
+
+  // 15 clean but all easy thank-yous: not enough variety
+  p = { level: 1, recent: [] };
+  for (let i = 0; i < 20; i++) p = R.nextProgress(p, true, plain);
+  assert.equal(p.level, 1); assert.equal(R.standing(p).clean, 20);
+  // add the variety, one kind at a time
+  for (let i = 0; i < 3; i++) p = R.nextProgress(p, true, { ...plain, replyAll: true });
+  for (let i = 0; i < 3; i++) p = R.nextProgress(p, true, { ...plain, ccMom: true });
+  assert.equal(p.level, 1);
+  for (let i = 0; i < 2; i++) p = R.nextProgress(p, true, { ...plain, multi: true });
+  assert.equal(p.level, 1);
+  p = R.nextProgress(p, true, { ...plain, multi: true }); assert.equal(p.level, 2);
+
+  // a rushed one costs him but doesn't reset: 14 clean + 1 sloppy + 1 clean = 15 of 16
+  p = { level: 2, recent: [] };
+  for (let i = 0; i < 14; i++) p = R.nextProgress(p, true, all);
+  p = R.nextProgress(p, false, all); assert.equal(R.standing(p).clean, 14); assert.equal(p.level, 2);
+  p = R.nextProgress(p, true, all); assert.equal(p.level, 3);
+
+  // too many sloppy ones in the window: 6 misses in the last 20 blocks moving up
+  p = { level: 1, recent: [] };
+  for (let i = 0; i < 6; i++) p = R.nextProgress(p, false, all);
+  for (let i = 0; i < 14; i++) p = R.nextProgress(p, true, all);
+  assert.equal(p.level, 1); assert.equal(R.standing(p).clean, 14);
+  p = R.nextProgress(p, true, all); assert.equal(p.level, 2);   // oldest miss slid out of the 20
+
+  // no-reply emails don't count
+  const before = { level: 1, recent: [{ c: true, ...all }] };
+  assert.deepEqual(R.nextProgress(before, false, all, false).recent, before.recent);
+  // top level stays
+  p = { level: 3, recent: [] }; for (let i = 0; i < 20; i++) p = R.nextProgress(p, true, all); assert.equal(p.level, 3);
+});
+
+t('tags: what kind of email it was', () => {
+  assert.deepEqual(R.tagsFor({ ...adMail, asks: ['a', 'b'] }), { replyAll: true, ccMom: true, multi: true });
+  assert.deepEqual(R.tagsFor({ ...adMail, asks: ['a'] }, true), { replyAll: true, ccMom: false, multi: false });
 });
 
 console.log(`All ${n} rule groups passed.`);

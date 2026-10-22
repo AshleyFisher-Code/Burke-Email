@@ -177,4 +177,6 @@ export const SCENARIOS = [
   'A teacher answers a question he asked about the homework and says to let her know if anything else is unclear. Only Burke is on it.',
   'A teacher says the grade on his last test was lower than usual and invites him to talk about it. His advisor is copied.',
   'A club advisor asks whether he can help set up for the science fair after school on Tuesday. Another teacher is copied.',
+  'A teacher asks two things: whether he has chosen his history project topic, and whether he needs more time on the outline. His advisor is copied.',
+  'His advisor asks how the first week back after his absence went and whether he has caught up on missed work in math and science.',
 ];

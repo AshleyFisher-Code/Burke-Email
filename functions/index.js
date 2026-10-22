@@ -123,7 +123,7 @@ export const ACTIONS = {
 
 const NO_CLAUDE = {
   async progress(uid) {
-    const p = (await progressDoc().get()).data() || { level: 1, cleanStreak: 0 };
+    const p = (await progressDoc().get()).data() || { level: 1, recent: [] };
     if (uid !== PARENT_UID) return { progress: p };
     const q = await sessions().orderBy('at', 'desc').limit(40).get();
     return { progress: p, sessions: q.docs.map(x => ({ id: x.id, ...x.data(), at: x.data().at ? x.data().at.toMillis() : null })) };
@@ -137,14 +137,15 @@ const NO_CLAUDE = {
     await sessions().add({ ...doc, at: FieldValue.serverTimestamp() });
     if (d.progress && typeof d.progress.level === 'number') {
       const p = d.progress;
-      await progressDoc().set({ level: Math.min(3, Math.max(1, p.level)), cleanStreak: p.cleanStreak || 0, total: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      const recent = (Array.isArray(p.recent) ? p.recent : []).slice(-20).map(r => ({ c: !!r.c, replyAll: !!r.replyAll, ccMom: !!r.ccMom, multi: !!r.multi }));
+      await progressDoc().set({ level: Math.min(3, Math.max(1, p.level)), recent, total: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
     return { saved: true };
   },
   async setLevel(uid, d) {
     if (uid !== PARENT_UID) throw new HttpsError('permission-denied', 'Only Mom can change the level.');
     const level = Math.min(3, Math.max(1, Number(d.level) || 1));
-    await progressDoc().set({ level, cleanStreak: 0, setByParentAt: FieldValue.serverTimestamp() }, { merge: true });
+    await progressDoc().set({ level, recent: [], setByParentAt: FieldValue.serverTimestamp() }, { merge: true });
     return { level };
   },
 };

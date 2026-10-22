@@ -12,7 +12,7 @@ const AD_EMAIL = {
   ccMom: true, ccMomWhy: 'It\'s about an injury, so Mom gets a copy.',
 };
 const COLLAPSED = { ...AD_EMAIL, recipientsComplete: false, problem: 'Tap the little arrow next to the names at the top so everyone shows, then take the screenshot again.' };
-let progress = { level: 1, cleanStreak: 0 }; const saved = [];
+let progress = { level: 1, recent: [] }; const saved = [];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 export async function coachMock({ action, ...d }) {
@@ -48,7 +48,7 @@ export async function coachMock({ action, ...d }) {
       return { issues };
     }
     case 'save': if (!d.preview) { saved.push({ ...d.session, at: Date.now() }); progress = { ...progress, ...d.progress }; } window.__saved = saved; return { saved: !d.preview };
-    case 'setLevel': progress = { ...progress, level: d.level, cleanStreak: 0 }; return { level: d.level };
+    case 'setLevel': progress = { ...progress, level: d.level, recent: [] }; return { level: d.level };
   }
   throw new Error('mock: unknown ' + action);
 }

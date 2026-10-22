@@ -1,7 +1,7 @@
 import { STUDENT_UID, PARENT_UID, STUDENT_NAME, MOM_EMAIL, APP_VERSION } from './config.js';
 import { ask, shrink, isMock } from './coach.js';
 import { ROLES, roleLabel, TITLES, displayName, others, momOnEmail, correctReplyType, replyFeedback, ccMomFeedback,
-  greetingOptions, signoffOptions, shuffle, assemble, applyFix, usableIssues, LEVELS, CLEAN_TO_MOVE_UP, isClean, nextProgress } from './rules.js';
+  greetingOptions, signoffOptions, shuffle, assemble, applyFix, usableIssues, LEVELS, NEED_CLEAN, NEED_EACH, WINDOW, KINDS, standing, tagsFor, isClean, nextProgress } from './rules.js';
 
 /* ---------- tiny DOM helper ---------- */
 const h = (tag, attrs = {}, ...kids) => {
@@ -21,7 +21,7 @@ const setNet = () => { net.hidden = navigator.onLine; };
 window.addEventListener('online', setNet); window.addEventListener('offline', setNet); setNet();
 
 /* ---------- who's signed in ---------- */
-let user = null, role = null, preview = false, progress = { level: 1, cleanStreak: 0 }, parentData = null;
+let user = null, role = null, preview = false, progress = { level: 1, recent: [] }, parentData = null;
 let S = null;            // the email being worked on
 const runKey = () => 'email-run-' + (user && user.uid);
 const saveRun = () => { try { if (S) localStorage.setItem(runKey(), JSON.stringify(S)); else localStorage.removeItem(runKey()); } catch (e) {} };
@@ -115,7 +115,7 @@ function newSession(mode) {
 
 /* ---------- home ---------- */
 function renderHome() {
-  const lv = progress.level || 1, left = Math.max(0, CLEAN_TO_MOVE_UP - (progress.cleanStreak || 0));
+  const lv = progress.level || 1, st = standing(progress);
   show(
     h('div', { class: 'spread' }, h('div', { class: 'eyebrow', text: 'Email Coach' }), preview ? h('button', { class: 'linkbtn', onclick: () => { preview = false; S = null; route(); } }, 'Back to parent view') : signOutBtn()),
     h('h1', { text: `Hi, ${STUDENT_NAME}.` }),
@@ -123,8 +123,7 @@ function renderHome() {
     h('button', { class: 'btn', onclick: () => newSession('practice') }, h('b', { text: 'Practice email' }), h('span', { text: 'A made-up email from a teacher, to practice on' })),
     card(h('div', { class: 'spread' }, h('div', { class: 'eyebrow', text: `Level ${lv} of 3` }), h('span', { class: 'chip', text: LEVELS[lv].name })),
       h('p', { text: LEVELS[lv].blurb }),
-      lv < 3 ? h('div', {}, h('div', { class: 'bar' }, h('i', { style: `width:${Math.round(100 * (CLEAN_TO_MOVE_UP - left) / CLEAN_TO_MOVE_UP)}%` })),
-        h('p', { class: 'small muted', text: `${left} more clean email${left === 1 ? '' : 's'} to move up. Clean means every choice right the first time.` }))
+      lv < 3 ? levelMeter(st)
         : h('p', { class: 'small muted', text: 'Top level. You know how to do this.' })),
     card(h('h2', { text: 'Every good school email' }),
       h('ol', { class: 'recipe' },
@@ -134,6 +133,14 @@ function renderHome() {
         h('li', {}, h('b', { text: 'Closing line' }), ' a short wrap-up'),
         h('li', {}, h('b', { text: 'Sign-off' }), ' Thank you, then your name'))),
     h('p', { class: 'small muted center', text: `v${APP_VERSION}` }));
+}
+
+function levelMeter(st) {
+  return h('div', { class: 'meter' },
+    h('div', { class: 'bar' }, h('i', { style: `width:${Math.min(100, Math.round(100 * st.clean / NEED_CLEAN))}%` })),
+    h('p', { class: 'small', text: `${st.clean} of ${NEED_CLEAN} clean emails` + (st.of > st.clean ? ` (out of your last ${Math.min(st.of, WINDOW)})` : '') }),
+    h('ul', { class: 'kinds' }, KINDS.map(([k, label]) => h('li', { class: st.kinds[k] >= NEED_EACH ? 'got' : '' }, `${Math.min(st.kinds[k], NEED_EACH)}/${NEED_EACH} ${label}`))),
+    h('p', { class: 'small muted', text: `Clean means every choice right the first time. You need ${NEED_CLEAN} clean out of your last ${WINDOW}, including some of each kind.` }));
 }
 
 /* ---------- 1. add the email ---------- */
@@ -493,7 +500,7 @@ function renderFinal() {
 async function finish() {
   S.finished = true; S.endedAt = Date.now();
   const clean = isClean(S);
-  const np = nextProgress(progress, clean);
+  const np = nextProgress(progress, clean, tagsFor(S.mail, S.momAlreadyOn), !S.noReply);
   const m = S.mail;
   const session = {
     mode: S.mode, level: S.level, topic: m.topic || '', subject: m.subject || '', sender: displayName(m.sender), senderEmail: m.sender.email || '',
@@ -531,9 +538,10 @@ function renderParent() {
       h('div', { class: 'stat' }, h('b', { text: String(list.length - real.length) }), h('span', { text: 'Practice' })),
       h('div', { class: 'stat' }, h('b', { text: firstRight('replyType') }), h('span', { text: 'Reply button right' })),
       h('div', { class: 'stat' }, h('b', { text: firstRight('ccMom') }), h('span', { text: 'CC-Mom call right' })))),
-    card(h('h2', { text: 'Level' }), h('p', { class: 'small muted', text: `Moves up on its own after ${CLEAN_TO_MOVE_UP} clean emails in a row. Clean streak now: ${progress.cleanStreak || 0}.` }),
+    card(h('h2', { text: 'Level' }), h('p', { class: 'small muted', text: `Moves up on its own after ${NEED_CLEAN} clean emails out of his last ${WINDOW} at that level, with at least ${NEED_EACH} each that needed Reply all, needed CC Mom, and had 2+ questions.` }),
+      lv < 3 ? levelMeter(standing(progress)) : null,
       h('div', { class: 'choices long' }, [1, 2, 3].map(n => h('button', { class: 'opt' + (n === lv ? ' sel' : ''), onclick: async () => {
-        try { const r = await ask('setLevel', { level: n }); progress = { ...progress, level: r.level, cleanStreak: 0 }; route(); } catch (e) { alert(e.message); }
+        try { const r = await ask('setLevel', { level: n }); progress = { ...progress, level: r.level, recent: [] }; route(); } catch (e) { alert(e.message); }
       } }, h('b', { text: `${n}. ${LEVELS[n].name}` }), h('span', { text: LEVELS[n].blurb }))))),
     card(h('h2', { text: 'Recent' }), recent.length ? h('ul', { class: 'list' }, recent.map(s => h('li', {}, h('div', {},
       h('div', { class: 'row' }, h('b', { text: s.topic || s.subject || '(no subject)' }), s.mode === 'practice' ? h('span', { class: 'pill none', text: 'Practice' }) : null),

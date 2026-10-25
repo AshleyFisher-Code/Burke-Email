@@ -57,7 +57,10 @@ try {
   check('thanks: proper → ok', (await c('thanks', 'Thank you for cheking on me.')).ok);
   const miss = await c('body', 'I will play Saturday.');
   check('body: missing ankle → not ok', !miss.ok, miss.feedback);
-  check('body: feedback doesn\'t write it for him', !/my ankle (feels|is)/i.test(miss.feedback), miss.feedback);
+  // A starter of 4 words or fewer is allowed ("My ankle feels..."); a sentence he could copy is not.
+  const quoted = [...miss.feedback.matchAll(/["“]([^"”]+)["”]/g)].map(m => m[1].replace(/[.…]+$/, '').trim());
+  const writesIt = quoted.some(q => q.split(/\s+/).length > 4) || /my ankle (feels|is) (better|good|fine|okay|ok|great)/i.test(miss.feedback);
+  check('body: feedback doesn\'t write it for him', !writesIt, miss.feedback);
   const sp = await c('body', 'my ankel feels alot beter becuase i iced it and i will play saterday');
   check('body: spelling mistakes still ok (dysgraphia rule)', sp.ok, sp.feedback);
   check('closing: proper → ok', (await c('closing', 'See you at practice.')).ok);

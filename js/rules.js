@@ -130,25 +130,37 @@ export function applyFix(text, fragment, replacement, at = -1) {
   return text.slice(0, i) + replacement + text.slice(i + fragment.length);
 }
 
+/** Where a fix applies: its saved spot if still there, else the first whole-word match (so "u" never matches inside "out"). */
+export function locate(text, x) {
+  const f = x.fragment;
+  const whole = i => i >= 0 && !/[A-Za-z0-9]/.test(text[i - 1] || '') && !/[A-Za-z0-9]/.test(text[i + f.length] || '') || !/^[A-Za-z0-9]/.test(f);
+  if (typeof x.at === 'number' && text.substr(x.at, f.length) === f && whole(x.at)) return x.at;
+  if (!x.dupOk) return text.indexOf(f);
+  for (let i = text.indexOf(f); i >= 0; i = text.indexOf(f, i + 1)) if (whole(i)) return i;
+  return -1;
+}
+
 /** Keep only polish issues we can actually show and fix: the spot must be in his text and exactly one choice right. */
 export function usableIssues(issues, parts) {
   const out = [], seen = new Set();
   for (const x of issues || []) {
     const text = parts[x.part];
     if (typeof text !== 'string' || !x.fragment || !text.includes(x.fragment)) continue;
-    if (text.indexOf(x.fragment) !== text.lastIndexOf(x.fragment)) continue;   // appears twice: can't tell which spot
+    if (!x.dupOk && text.indexOf(x.fragment) !== text.lastIndexOf(x.fragment)) continue;   // appears twice: can't tell which spot
     const opts = (x.options || []).filter(o => o && typeof o.text === 'string');
     if (opts.filter(o => o.ok).length !== 1 || opts.length < 2) continue;
+    if (new Set(opts.map(o => o.text)).size !== opts.length) continue;   // two identical buttons
     const right = opts.find(o => o.ok).text;
     if (right === x.fragment) continue;               // "fix" that changes nothing
-    const key = x.part + '|' + x.fragment;
+    const s0 = locate(text, x), s1 = s0 + x.fragment.length;
+    if (s0 < 0) continue;
+    const key = x.part + '|' + x.fragment + (x.dupOk ? '|' + s0 : '');
     if (seen.has(key)) continue; seen.add(key);
     // two fixes on overlapping words would cancel each other: keep the first
-    const s0 = text.indexOf(x.fragment), s1 = s0 + x.fragment.length;
     if (out.some(y => y.part === x.part && y._at < s1 && s0 < y._at + y.fragment.length)) continue;
     out.push({ ...x, options: opts, _at: s0 });
   }
-  return out.slice(0, 10);
+  return out.slice(0, 15);
 }
 
 /* ---------- levels: the help fades as he gets it right ---------- */
@@ -249,3 +261,90 @@ export const NEW_PRACTICE = [
   { text: 'You want to meet with Mr. Patel to talk about your grade on the last math quiz. You\'re free Thursday after school.',
     to: { title: 'Mr.', lastName: 'Patel', role: 'teacher', about: 'math' }, purpose: 'meeting', existing: false },
 ];
+
+/* ---------- shortcuts: spelled out by fixed rules, so "tues" always becomes "Tuesday" ---------- */
+// Only unambiguous ones here; trickier ones (ur, prob, 2/4 as words) are left to Claude.
+const DAY = { tues: 'Tuesday', tue: 'Tuesday', weds: 'Wednesday', thurs: 'Thursday', thur: 'Thursday', thu: 'Thursday', thrs: 'Thursday', fri: 'Friday', mon: 'Monday' };
+const MONTH = { jan: 'January', feb: 'February', apr: 'April', jun: 'June', jul: 'July', aug: 'August', sept: 'September', sep: 'September', oct: 'October', nov: 'November', dec: 'December' };
+const WORDS = {
+  tmrw: 'tomorrow', tmr: 'tomorrow', tmw: 'tomorrow', tomm: 'tomorrow', '2day': 'today', '2morrow': 'tomorrow', hw: 'homework',
+  pls: 'please', plz: 'please', thx: 'thanks', thnx: 'thanks', tx: 'thanks', ty: 'thank you', 'b/c': 'because', 'b/c.': 'because', cuz: 'because', bcuz: 'because', becuz: 'because',
+  'w/': 'with', 'w/o': 'without', b4: 'before', idk: 'I don\'t know', nvm: 'never mind', btw: 'by the way', lol: '', sry: 'sorry', srry: 'sorry', soz: 'sorry',
+  gonna: 'going to', wanna: 'want to', kinda: 'kind of', gotta: 'have to', tho: 'though', thru: 'through', rn: 'right now', asap: 'as soon as possible',
+  u: 'you', bio: 'biology', sci: 'science', chem: 'chemistry', proj: 'project', wkst: 'worksheet', wksht: 'worksheet', prac: 'practice', caf: 'cafeteria', lib: 'library',
+  assgn: 'assignment', assn: 'assignment', def: 'definitely', defo: 'definitely', ok: 'OK', yeah: 'yes', yea: 'yes', ya: 'yes', yep: 'yes', yup: 'yes', ppl: 'people', msg: 'message',
+  'comp sci': 'computer science',
+};
+const LANGS = ['latin', 'english', 'spanish', 'french', 'german', 'chinese', 'mandarin', 'greek', 'italian', 'japanese', 'arabic', 'russian'];
+// Never flag these (school names everyone uses, and words that are fine as is)
+export const ALLOWED = ['IS', 'LS', 'US', 'PE', 'STEM', 'JV', 'OK', 'okay', 'iPad', 'PDF', 'a.m.', 'p.m.', 'AM', 'PM', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'math', 'gym', 'quiz', 'info', 'test'];
+const SUBJECTS = ['science', 'biology', 'history', 'math', 'geography', 'chemistry', 'physics', 'art', 'music', 'social studies', 'computer science', 'geometry', 'algebra', 'drama', 'band', 'chorus', 'health'];
+
+const casual = new Set(['yeah', 'yea', 'ya', 'yep', 'yup', 'lol']);
+const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const startsSentence = (text, i) => { const before = text.slice(0, i).replace(/\s+$/, ''); return before === '' || /[.!?]$/.test(before); };
+
+/** Find shortcuts and lowercase language names in each part. Returns polish issues (tap choices), one per word. */
+export function findShortcuts(parts) {
+  const out = [];
+  const dict = { ...DAY, ...MONTH, ...WORDS };
+  const keys = Object.keys(dict).sort((a, b) => b.length - a.length);
+  const re = new RegExp(`(^|[^A-Za-z0-9/'])(${keys.map(esc).join('|')})(\\.?)(?=$|[^A-Za-z0-9/'])`, 'gi');
+  for (const [part, text] of Object.entries(parts || {})) {
+    if (typeof text !== 'string' || !text) continue;
+    const taken = [], abbrevDots = new Set();
+    const isStart = i => { const before = text.slice(0, i).replace(/\s+$/, ''); return before === '' || (/[.!?]$/.test(before) && !abbrevDots.has(before.length - 1)); };
+    let m;
+    re.lastIndex = 0;
+    while ((m = re.exec(text))) {
+      const word = m[2], low = word.toLowerCase(), at = m.index + m[1].length;
+      if (low === 'ok' && word === 'OK') continue;             // "OK" is fine
+      if (low === 'u' && word === 'U') continue;               // a letter grade, a name
+      if (low === 'us' ) continue;
+      let full = dict[low];
+      // keep a period only if it ends the sentence ("on tues." at the end, or before a new sentence)
+      const after = text.slice(at + word.length + m[3].length);
+      const dated = !!(DAY[low] || MONTH[low]);
+      const sentenceEnd = !m[3] || !dated || /^\s*$/.test(after) || /^\s+[A-Z]/.test(after) || /^\s*\n/.test(after);
+      const fragment = word + (m[3] && !sentenceEnd ? '.' : '');
+      if (m[3] && !sentenceEnd) abbrevDots.add(at + word.length);
+      const atStart = isStart(at);
+      if (full === '') { // "lol": just take it out
+        out.push({ part, kind: 'spellout', fragment, at, dupOk: true, why: 'Leave "lol" out of school emails.', options: [{ text: '', ok: true, label: '(take it out)' }, { text: fragment, ok: false }] });
+        taken.push([at, at + fragment.length]); continue;
+      }
+      if (atStart && full[0] === full[0].toLowerCase()) full = full[0].toUpperCase() + full.slice(1);
+      if (full === fragment) continue;
+      const wrongs = [fragment];
+      if (DAY[low] || MONTH[low]) { const cap = low[0].toUpperCase() + low.slice(1); if (!wrongs.includes(cap + '.')) wrongs.push(cap + '.'); }
+      out.push({ part, kind: 'spellout', fragment, at, dupOk: true,
+        why: casual.has(low) ? `"${word}" is too casual for a teacher. Use "${full}".` : low === 'ok' ? 'Write OK in capitals (or "okay").' : 'In school emails, write the whole word.',
+        options: [{ text: full, ok: true }, ...wrongs.filter(w => w !== full).slice(0, 2).map(t => ({ text: t, ok: false }))] });
+      taken.push([at, at + fragment.length]);
+    }
+    // language names always take a capital: latin -> Latin
+    const lre = new RegExp(`\\b(${LANGS.join('|')})\\b`, 'g');
+    while ((m = lre.exec(text))) {
+      if (taken.some(([a, b]) => m.index < b && a < m.index + m[1].length)) continue;
+      const cap = m[1][0].toUpperCase() + m[1].slice(1);
+      out.push({ part, kind: 'capital', fragment: m[1], at: m.index, dupOk: true, why: 'Languages always start with a capital letter.', options: [{ text: cap, ok: true }, { text: m[1], ok: false }] });
+    }
+  }
+  return out;
+}
+
+/** Drop fixes Claude shouldn't make: allowed words, capitals on subject names, punctuation on the subject line. */
+export function filterClaudeIssues(issues) {
+  return (issues || []).filter(x => {
+    const f = String(x.fragment || '').trim(), right = ((x.options || []).find(o => o && o.ok) || {}).text || '';
+    if (x.part === 'subject' && x.kind !== 'spelling' && x.kind !== 'spellout') return false;
+    if (ALLOWED.includes(f)) return false;
+    if (x.kind === 'capital' && SUBJECTS.includes(f.toLowerCase()) && right.toLowerCase() === f.toLowerCase()) return false;
+    return true;
+  });
+}
+
+/** Everything the final check will show, in order: fixed-rule shortcuts first, then Claude's other fixes (overlaps dropped). */
+export function polishIssues(claudeIssues, parts) {
+  return usableIssues([...findShortcuts(parts), ...filterClaudeIssues(claudeIssues)], parts);
+}

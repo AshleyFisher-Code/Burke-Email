@@ -125,6 +125,22 @@ try {
   const spS = await run('polish', { parts: { subject: 'Missed sciense on Tuesday', body: 'could you tell me what i missed' } });
   const spU = R.usableIssues((spS.issues || []).filter(x => x.part !== 'subject' || x.kind === 'spelling'), { subject: 'Missed sciense on Tuesday', body: 'could you tell me what i missed' });
   check('polish: subject gets spelling only', spU.filter(x => x.part === 'subject').every(x => x.kind === 'spelling') && spU.some(x => x.part === 'subject' && /science/.test(x.options.find(o => o.ok).text)), JSON.stringify(spS.issues));
+  /* ---------- shortcuts and all-caps ---------- */
+  const raw = { body: 'i was out on TUES b/c i was sick. pls send the hw and ur notes from latin class, im gonna be back thurs' };
+  let fx = { ...raw };
+  for (let r = 0; r < 3; r++) {
+    const pr = await run('polish', { parts: fx });
+    for (const x of R.polishIssues(pr.issues, fx)) { const i = R.locate(fx.body, x); if (i >= 0) fx.body = R.applyFix(fx.body, x.fragment, x.options.find(o => o.ok).text, i); }
+  }
+  check('shortcuts: Tuesday/Thursday spelled out', /Tuesday/.test(fx.body) && /Thursday/.test(fx.body) && !/TUES|thurs/i.test(fx.body.replace(/Thursday|Tuesday/g, '')), fx.body);
+  check('shortcuts: because, please, homework, going to', /because/.test(fx.body) && /[Pp]lease/.test(fx.body) && /homework/.test(fx.body) && /going to/.test(fx.body), fx.body);
+  check('shortcuts: ur → your, im → I\'m (Claude)', /your notes/.test(fx.body) && /I'm/.test(fx.body), fx.body);
+  check('shortcuts: Latin capitalized', /Latin/.test(fx.body), fx.body);
+  check('shortcuts: sentence capitals and end period', /^I was/.test(fx.body) && /\.$/.test(fx.body), fx.body);
+  const ok2 = await run('polish', { parts: { body: 'I will see you in the IS gym on Monday. OK, I will bring my Science notes.' } });
+  check('allowed words left alone (IS, OK, Science)', R.polishIssues(ok2.issues, { body: 'I will see you in the IS gym on Monday. OK, I will bring my Science notes.' }).length === 0, JSON.stringify(ok2.issues));
+  const txt = await c('body', 'idk if i can play sat b/c my ankle hurts, ill lyk tmrw 👍');
+  check('writing check: lots of shortcuts + emoji → not ok', !txt.ok, txt.feedback);
 } catch (e) { fail++; console.log('FAIL  crashed →', e.message); }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

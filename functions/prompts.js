@@ -11,7 +11,8 @@ Hard rules:
 - Never write his email or any part of it for him. Never give him a full sentence he could copy into his email. You may say what is missing and offer a starter of four words or fewer.
 - Burke has dysgraphia. Never mark him wrong for spelling, capital letters or punctuation, except in the polish task, which exists only for that.
 - Talk to him directly ("you"), warmly and plainly, at a 7th-grade reading level. One or two short sentences. No exclamation-point cheerleading, no lecturing.
-- His mom's address is ${MOM_EMAIL}.`;
+- His mom's address is ${MOM_EMAIL}.
+- Texting shortcuts (u, pls, b/c, idk, gonna, tmrw, hw…) and emoji don't belong in school email. In the writing steps, if a piece has three or more shortcuts or any emoji, ok = false and ask him to spell words out / take out the emoji (the final check fixes the odd one or two, so fewer than three alone is not a reason to fail). "yeah" is too casual for a teacher.`;
 
 /* ---------- 1. read the email from screenshots or pasted text ---------- */
 const person = {
@@ -141,7 +142,7 @@ export const POLISH_TOOL = {
         type: 'array',
         items: { type: 'object', properties: {
           part: { type: 'string', description: 'Which piece of his writing: one of the keys you were given' },
-          kind: { type: 'string', enum: ['spelling', 'capital', 'punctuation'] },
+          kind: { type: 'string', enum: ['spelling', 'spellout', 'capital', 'punctuation'] },
           fragment: { type: 'string', description: 'Copied character for character from his text, as short as possible but appearing only once in that part' },
           options: { type: 'array', description: '2 or 3 choices. Exactly one ok. For spelling include his version as a wrong choice.',
             items: { type: 'object', properties: { text: { type: 'string' }, ok: { type: 'boolean' } }, required: ['text', 'ok'] } },
@@ -152,7 +153,11 @@ export const POLISH_TOOL = {
     required: ['issues'],
   },
 };
-export const POLISH_RULES = `Find only mechanical mistakes in Burke's writing: misspelled words (including sound-alike mix-ups like there/their, to/too), missing capitals (start of a sentence, "I", names, days, months, Mr./Mrs.), missing end punctuation, and missing apostrophes in contractions (dont, im).
+export const POLISH_RULES = `Find only mechanical mistakes in Burke's writing: misspelled words (including sound-alike mix-ups like there/their, to/too), missing capitals (start of a sentence, "I", names, days, months, Mr./Mrs., and language names like Latin, English, Spanish), missing end punctuation, missing apostrophes in contractions (dont, im), texting shortcuts, and ALL-CAPS words.
+- Texting shortcuts and shortened words get kind "spellout", and the right option is the WHOLE word or phrase with correct capitals: ur → your or you're (whichever fits), prob → probably or problem, pres → presentation, lit → literature, geo → geography or geometry (whichever fits), 2/4 used as words → to/for, gonna → going to, emoji-free words, etc. Never offer a shortened form (like "Tues." or "TUES") as the right answer.
+- An ALL-CAPS word (other than allowed abbreviations) is fixed to normal capitals in one issue.
+- These are fine; never flag them: IS, LS, US (school divisions), PE, STEM, JV, OK, okay, iPad, PDF, a.m., p.m., Mr., Mrs., Ms., Dr., math, gym, quiz, info, test.
+- Subject names other than languages (science, biology, history, math…) are fine with or without a capital; never flag their capitals either way.
 Do not change his wording, word choice, style or grammar beyond that. If the part is not "whole", do not flag a greeting or sign-off (the app built those). For "whole", also check that the greeting ends with a comma and that Mr./Mrs. and names are capitalized.
 Each issue becomes a tap choice: the fragment is replaced by whichever option he taps. For a missing period at the end, the fragment is the last word and the right option is that word plus the period. If one word needs more than one fix (for example a capital AND the final period, like saturday → Saturday.), make it ONE issue whose right option has every fix; never list two issues on the same words. Make each fragment appear exactly once in its part (widen it by a word if needed). For the "subject" part, flag only misspelled words (subject lines don't need periods or sentence capitals). Return an empty list if it's clean.`;
 

@@ -219,4 +219,32 @@ t('new email practice situations are complete', () => {
   assert.ok(R.NEW_PRACTICE.some(sc => sc.existing));
 });
 
+t('shortcuts are spelled out, one tap per word, with the whole word as the only right answer', () => {
+  const fix = parts => { let p = { ...parts }; for (let r = 0; r < 3; r++) for (const x of R.polishIssues([], p)) { const i = R.locate(p[x.part], x); if (i >= 0) p[x.part] = R.applyFix(p[x.part], x.fragment, x.options.find(o => o.ok).text, i); } return p; };
+  const got = fix({ body: 'i was out on TUES. b/c i was sick, pls send the hw. see u in latin and Science on thurs.', subject: 'missed sci tues' });
+  assert.equal(got.body, 'i was out on Tuesday because i was sick, please send the homework. see you in Latin and Science on Thursday.');
+  assert.equal(got.subject, 'missed science Tuesday');
+  // every right answer is a whole word, never an abbreviation; every option different
+  for (const x of R.findShortcuts({ b: 'tues thurs TUES Tues. wed hw pls thx tmrw b/c w/ gonna wanna u bio sci chem proj wkst prac yeah ok oct Sept. dec' })) {
+    const right = x.options.find(o => o.ok).text;
+    assert.ok(!/\.$/.test(right) && right !== right.toUpperCase() || right === 'OK', right);
+    assert.equal(new Set(x.options.map(o => o.text)).size, x.options.length);
+  }
+  // left alone
+  for (const t of ['We sat in the sun.', 'I will see you in the IS gym on Monday at 3 p.m.', 'OK, see you in Science.', 'I got a U on it.', 'Mrs. Lee and Dr. Patel', 'I put it in my bag.', 'without', 'the outcome']) assert.deepEqual(R.findShortcuts({ b: t }), [], t);
+  // sentence starts get a capital; mid-sentence doesn't
+  assert.equal(fix({ b: 'pls send it. thx for your help' }).b, 'Please send it. Thanks for your help');
+  assert.equal(fix({ b: 'See you Tues. at 3' }).b, 'See you Tuesday at 3');
+  assert.equal(fix({ b: 'See you on tues.' }).b, 'See you on Tuesday.');
+  assert.equal(fix({ b: 'yeah i can come' }).b, 'Yes i can come');
+  // Claude's fixes on allowed words / subject capitals / subject-line punctuation are dropped
+  const c = R.filterClaudeIssues([
+    { part: 'body', kind: 'capital', fragment: 'science', options: [{ text: 'Science', ok: true }, { text: 'science', ok: false }] },
+    { part: 'body', kind: 'spellout', fragment: 'IS', options: [{ text: 'Intermediate School', ok: true }, { text: 'IS', ok: false }] },
+    { part: 'subject', kind: 'punctuation', fragment: 'Tuesday', options: [{ text: 'Tuesday.', ok: true }, { text: 'Tuesday', ok: false }] },
+    { part: 'body', kind: 'capital', fragment: 'latin', options: [{ text: 'Latin', ok: true }, { text: 'latin', ok: false }] },
+  ]);
+  assert.deepEqual(c.map(x => x.fragment), ['latin']);
+});
+
 console.log(`All ${n} rule groups passed.`);

@@ -161,3 +161,6 @@ input[type=text]{font:inherit;font-size:18px;color:var(--ink);background:var(--s
 input[type=text]:focus{outline:none;border-color:var(--accent)}
 div.f{display:flex;flex-direction:column;gap:6px;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 div.f .choices button{text-transform:none;letter-spacing:0}
+
+.choices.stack{flex-direction:column}
+.choices.stack button.opt{flex:0 0 auto;overflow-wrap:break-word;text-align:center}

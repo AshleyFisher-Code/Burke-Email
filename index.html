@@ -16,12 +16,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=1.1.0">
+<link rel="stylesheet" href="css/app.css?v=1.2.0">
 </head>
 <body>
 <div id="net" class="net" hidden>Offline · the coach needs the internet</div>
 <main id="app" class="wrap"><p class="muted loading">Loading…</p></main>
-<script type="module" src="js/app.js?v=1.1.0"></script>
+<script type="module" src="js/app.js?v=1.2.0"></script>
 <script>
 if ('serviceWorker' in navigator && !/[?&]mock=1/.test(location.search)) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 </script>

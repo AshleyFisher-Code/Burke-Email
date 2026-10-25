@@ -33,7 +33,7 @@ const polishAll = async (p, snap) => {
     const opts = p.locator('button.opt.big');
     const texts = await opts.allTextContents();
     const mark = await p.locator('.ctx mark').textContent();
-    const right = texts.find(t => t !== mark);
+    const right = await p.evaluate(() => { const S = JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k => k.startsWith('email-run-')))); const x = S.polish.issues[S.polish.i]; const o = x.options.find(o => o.ok); return o.label || o.text; });
     await opts.filter({ hasText: new RegExp('^' + right.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$') }).first().click();
     await p.waitForTimeout(1300);
   }
@@ -148,16 +148,16 @@ try {
   await see(p, 'Write a subject line.'); await write(p, 'question'); await see(p, 'Not yet');
   await write(p, 'missed science tuesday'); await see(p, 'Good.'); await tap(p, 'Next');
   await see(p, 'Pick the greeting.'); await p.locator('button.opt', { hasText: /^(Dear|Hello) Mrs\. Lee,$/ }).click(); await tap(p, 'Next');
-  await see(p, 'Say why you\'re writing.'); await write(p, 'i was absent on tuesday becuase i was sick'); await see(p, 'Good.'); await tap(p, 'Next');
+  await see(p, 'Say why you\'re writing.'); await write(p, 'i was absent on TUES. becuase i was sick'); await see(p, 'Good.'); await tap(p, 'Next');
   await see(p, 'Now ask for what you need.'); await see(p, 'Make sure you say'); await write(p, 'could you tell me what i missed and the homework?'); await see(p, 'Good.'); await tap(p, 'Next');
   await see(p, 'Wrap it up.'); await write(p, 'thank you for your help'); await see(p, 'Good.'); await tap(p, 'Next');
   await see(p, 'Pick a sign-off.'); await p.locator('button.opt', { hasText: /^(Thank you|Best|Sincerely), \/ Burke$/ }).first().click(); await tap(p, 'Next');
-  await see(p, 'Last check'); await polishAll(p); await tap(p, 'See your email');
+  await see(p, 'Last check'); await see(p, 'Spell it out'); await shot(p, '21-spellout'); await polishAll(p); await tap(p, 'See your email');
   await see(p, 'Your finished email'); await see(p, 'New message'); await see(p, 'Cc: add Mom');
   const subj = await p.locator('pre.final').first().textContent();
   assert.equal(subj, 'missed science tuesday');
   const body = await p.locator('pre.final').nth(1).textContent();
-  assert.match(body, /^(Dear|Hello) Mrs\. Lee,\n\n[iI] was absent on tuesday because [iI] was sick\. could you tell me what [iI] missed and the homework\?\n\nthank you for your help\.\n\n(Thank you|Best|Sincerely),\nBurke$/);
+  assert.match(body, /^(Dear|Hello) Mrs\. Lee,\n\n[iI] was absent on Tuesday because [iI] was sick\. could you tell me what [iI] missed and the homework\?\n\nthank you for your help\.\n\n(Thank you|Best|Sincerely),\nBurke$/);
   await shot(p, '19-new-final'); await noSideScroll(p, 'new final');
   await tap(p, 'Done'); await see(p, 'Done.');
   const saved2 = await p.evaluate(() => window.__saved);

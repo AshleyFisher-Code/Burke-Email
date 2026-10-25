@@ -1,7 +1,7 @@
 import { STUDENT_UID, PARENT_UID, STUDENT_NAME, MOM_EMAIL, APP_VERSION } from './config.js';
 import { ask, shrink, isMock } from './coach.js';
 import { ROLES, roleLabel, TITLES, displayName, others, momOnEmail, correctReplyType, replyFeedback, ccMomFeedback,
-  greetingOptions, signoffOptions, shuffle, assemble, applyFix, usableIssues, LEVELS, NEED_CLEAN, NEED_EACH, WINDOW, KINDS, standing, tagsFor, isClean, nextProgress,
+  greetingOptions, signoffOptions, shuffle, assemble, applyFix, usableIssues, polishIssues, locate, LEVELS, NEED_CLEAN, NEED_EACH, WINDOW, KINDS, standing, tagsFor, isClean, nextProgress,
   PURPOSES, purposeLabel, PLAN_HINTS, ccChoices, ccFeedback, NEW_PRACTICE } from './rules.js';
 
 /* ---------- tiny DOM helper ---------- */
@@ -614,8 +614,8 @@ function typedParts() {
   if (isNew()) p.subject = S.parts.subject;
   return p;
 }
-// Subject lines only get spelling fixes (no periods or sentence capitals).
-const prep = issues => usableIssues((issues || []).filter(x => x.part !== 'subject' || x.kind === 'spelling'), typedParts()).map(x => ({ ...x, options: shuffle(x.options) }));
+// Fixed-rule shortcuts first (tues -> Tuesday), then Claude's fixes; subject lines get spelling only.
+const prep = issues => polishIssues(issues, typedParts()).map(x => ({ ...x, options: shuffle(x.options) }));
 async function renderPolish() {
   if (!S.polish) {
     show(top('Back', back), h('h1', { text: 'Last check' }), card(spinner('Looking for spelling, capitals, and periods…')));
@@ -634,22 +634,22 @@ async function renderPolish() {
     return show(top('Back', back), h('h1', { text: 'Last check' }), card(fb(true, P.issues.length || S.polishTotal ? 'All fixed.' : 'Nothing to fix.', 'Spelling, capitals, and periods look good.')), h('button', { class: 'main', onclick: next }, 'See your email'));
   }
   const x = P.issues[P.i], text = (S.parts[x.part] || '');
-  const at = text.indexOf(x.fragment);
+  const at = locate(text, x);
   if (at < 0) { P.i++; saveRun(); return renderPolish(); }   // an earlier fix already changed this spot
   const ctxStart = Math.max(0, text.lastIndexOf('.', at - 1) + 1, at - 80), ctxEnd = Math.min(text.length, at + x.fragment.length + 60);
   const context = h('p', { class: 'ctx' }, (ctxStart > 0 ? '…' : '') + text.slice(ctxStart, at).trimStart(), h('mark', { text: x.fragment }), text.slice(at + x.fragment.length, ctxEnd) + (ctxEnd < text.length ? '…' : ''));
   const out = h('div', { class: 'out' });
-  const kind = { spelling: 'Which spelling is right?', capital: 'Which is right?', punctuation: 'Which is right?' }[x.kind] || 'Which is right?';
-  const box = h('div', { class: 'choices' }, x.options.map(o => { const b = h('button', { class: 'opt big', onclick: () => {
+  const kind = { spelling: 'Which spelling is right?', spellout: 'Spell it out. Which is right?', capital: 'Which is right?', punctuation: 'Which is right?' }[x.kind] || 'Which is right?';
+  const box = h('div', { class: 'choices stack' }, x.options.map(o => { const b = h('button', { class: 'opt big', onclick: () => {
     if (o.ok) {
       const fixed = applyFix(S.parts[x.part], x.fragment, o.text, at);
-      if (fixed != null) { S.parts[x.part] = fixed; P.fixed++; S.polishTotal = (S.polishTotal || 0) + 1; }
+      if (fixed != null) { S.parts[x.part] = fixed.replace(/  +/g, ' ').replace(/ ([,.!?])/g, '$1'); P.fixed++; S.polishTotal = (S.polishTotal || 0) + 1; }
       P.i++; saveRun();
       out.replaceChildren(fb(true, 'Fixed.', x.why || ''));
       box.querySelectorAll('button').forEach(z => z.disabled = true); b.classList.add('right');
       setTimeout(renderPolish, x.why ? 1100 : 600);
     } else { b.classList.add('wrong'); b.disabled = true; out.replaceChildren(fb(false, 'Not that one.', 'Try the other choice.')); }
-  } }, o.text); return b; }));
+  } }, o.label || o.text); return b; }));
   show(top('Back', back), h('h1', { text: 'Last check' }), h('p', { class: 'muted', text: `${P.i + 1} of ${P.issues.length}` }),
     card(context, h('h2', { text: kind }), box, out));
 }

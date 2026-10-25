@@ -67,6 +67,7 @@ const str = (v, max) => { if (typeof v !== 'string') return ''; return v.slice(0
 const emailBlock = m => `THE EMAIL BURKE RECEIVED (as read earlier):\n${JSON.stringify({
   subject: m.subject, sender: m.sender, recipients: m.recipients, body: m.body, asks: m.asks,
 }, null, 1).slice(0, 12000)}`;
+const contextBlock = m => m && m.compose ? P.composeBlock(m) : emailBlock(m);
 const rolesBlock = r => r && Object.keys(r).length ? `\nWho Burke says each person is: ${JSON.stringify(r).slice(0, 2000)}` : '';
 
 /* ---------- actions ---------- */
@@ -89,17 +90,24 @@ export const ACTIONS = {
     if (!rule || !d.mail) throw new HttpsError('invalid-argument', 'Unknown step.');
     const before = d.sofar ? `\nWhat he has written so far (for context only, don't judge it): ${JSON.stringify(d.sofar).slice(0, 3000)}` : '';
     return callClaude(key, { tool: P.CHECK_TOOL, maxTokens: 600, content: [{ type: 'text', text:
-      `${emailBlock(d.mail)}${rolesBlock(d.roles)}${before}\n\nTHE STEP: ${rule}\n\nBURKE WROTE:\n"""${str(d.answer, 4000)}"""` }] });
+      `${contextBlock(d.mail)}${rolesBlock(d.roles)}${before}\n\nTHE STEP: ${rule}\n\nBURKE WROTE:\n"""${str(d.answer, 4000)}"""` }] });
   },
 
   async whole(key, d) {
     if (!d.mail) throw new HttpsError('invalid-argument', 'Missing email.');
-    return callClaude(key, { tool: P.WHOLE_TOOL, maxTokens: 900, content: [{ type: 'text', text:
-      `${emailBlock(d.mail)}${rolesBlock(d.roles)}\n\n${P.WHOLE_RULES}\n\nBURKE'S DRAFT:\n"""${str(d.answer, 6000)}"""` }] });
+    const c = !!d.mail.compose;
+    return callClaude(key, { tool: c ? P.NEW_WHOLE_TOOL : P.WHOLE_TOOL, maxTokens: 900, content: [{ type: 'text', text:
+      `${contextBlock(d.mail)}${rolesBlock(d.roles)}\n\n${c ? P.NEW_WHOLE_RULES : P.WHOLE_RULES}\n\nBURKE'S DRAFT:\n"""${str(d.answer, 6000)}"""` }] });
+  },
+
+  async plan(key, d) {
+    if (!d.mail || !d.mail.compose) throw new HttpsError('invalid-argument', 'Missing details.');
+    return callClaude(key, { tool: P.PLAN_TOOL, maxTokens: 900, content: [{ type: 'text', text:
+      `${P.composeBlock({ ...d.mail, plan: '' })}\n\n${P.PLAN_RULES}\n\nBURKE'S PLAN:\n"""${str(d.answer, 3000)}"""` }] });
   },
 
   async example(key, d) {
-    const part = { thanks: 'the thank-you opener (one sentence)', body: 'the main answer', closing: 'the closing line (one sentence)', whole: 'a whole short reply, greeting to sign-off', understand: 'a one-sentence summary of what an email is asking' }[d.step];
+    const part = { new_subject: 'the subject line of a new email (a few words)', new_thanks: 'the opening of a new email that says why you\'re writing', new_body: 'the main part of a new email that asks for something, with the details', new_closing: 'the closing line of a new email', new_whole: 'a whole short new email to a teacher, greeting to sign-off', plan: 'a few words saying what happened and what you need from the teacher', thanks: 'the thank-you opener (one sentence)', body: 'the main answer', closing: 'the closing line (one sentence)', whole: 'a whole short reply, greeting to sign-off', understand: 'a one-sentence summary of what an email is asking' }[d.step];
     if (!part) throw new HttpsError('invalid-argument', 'Unknown step.');
     return callClaude(key, { tool: P.EXAMPLE_TOOL, maxTokens: 500, content: [{ type: 'text', text:
       `${P.EXAMPLE_RULES}\n\nThe part he's stuck on: ${part}.\nHis real email is about: "${str(d.mail && d.mail.topic, 200)}". Pick something clearly different.` }] });
@@ -137,7 +145,7 @@ const NO_CLAUDE = {
     await sessions().add({ ...doc, at: FieldValue.serverTimestamp() });
     if (d.progress && typeof d.progress.level === 'number') {
       const p = d.progress;
-      const recent = (Array.isArray(p.recent) ? p.recent : []).slice(-20).map(r => ({ c: !!r.c, replyAll: !!r.replyAll, ccMom: !!r.ccMom, multi: !!r.multi }));
+      const recent = (Array.isArray(p.recent) ? p.recent : []).slice(-20).map(r => ({ c: !!r.c, replyAll: !!r.replyAll, ccMom: !!r.ccMom, multi: !!r.multi, new: !!r.new }));
       await progressDoc().set({ level: Math.min(3, Math.max(1, p.level)), recent, total: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
     return { saved: true };

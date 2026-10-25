@@ -13,4 +13,4 @@ export const STUDENT_UID = 'mhP5pRPUlXg3nooLBIsjMyHvF6j2';
 export const PARENT_UID = 'xFqJAFGGioUUadmrgbY7Fpbixwm2';
 export const STUDENT_NAME = 'Burke';
 export const MOM_EMAIL = 'ashley@ashleyfisher.com';
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.1.0';

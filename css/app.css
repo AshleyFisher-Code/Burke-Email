@@ -154,3 +154,10 @@ ul.kinds{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
 ul.kinds li{font-size:.78rem;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--chip);color:var(--muted)}
 ul.kinds li.got{background:var(--ok-bg);color:var(--ok)}
 ul.kinds li.got::before{content:'✓ '}
+
+.actions.two>*{flex:1 1 0}
+.situation{font-size:1.02rem;line-height:1.5}
+input[type=text]{font:inherit;font-size:18px;color:var(--ink);background:var(--surface);border:2px solid var(--line);border-radius:10px;padding:12px;width:100%;min-width:0}
+input[type=text]:focus{outline:none;border-color:var(--accent)}
+div.f{display:flex;flex-direction:column;gap:6px;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+div.f .choices button{text-transform:none;letter-spacing:0}

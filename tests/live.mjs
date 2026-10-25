@@ -93,6 +93,38 @@ try {
   check('practice: Burke is on it', pr.recipients.some(r => r.isMe));
   check('practice: trainer copied → Reply all', R.correctReplyType(pr) === 'reply_all', JSON.stringify(pr.recipients));
   check('practice: sender has a title', !!pr.sender.title, JSON.stringify(pr.sender));
+  /* ---------- new emails he starts ---------- */
+  const lee = { compose: true, sender: { name: 'Mrs. Lee', title: 'Mrs.', lastName: 'Lee' }, toRole: 'teacher', about: 'science' };
+  const plan = (purpose, answer, extra = {}) => run('plan', { mail: { ...lee, purpose, ...extra }, answer });
+  const missed = await plan('missed', 'i was out sick tuesday and need to know what i missed and if there was homework');
+  check('new plan: missed class → ok', missed.ok, missed.feedback);
+  check('new plan: missed class → Cc Mom', missed.ccMom === true, missed.ccMomWhy);
+  check('new plan: missed class → no advisor', missed.ccAdvisor === false, missed.ccAdvisorWhy);
+  check('new plan: mustInclude from his plan', missed.mustInclude.length >= 1 && missed.mustInclude.length <= 5, JSON.stringify(missed.mustInclude));
+  const vague = await plan('missed', 'i need help');
+  check('new plan: too vague → not ok', !vague.ok, vague.feedback);
+  const help = await plan('testHelp', 'math test thursday, stuck on inequalities, free monday or tuesday before school', { sender: { name: 'Mr. Patel', title: 'Mr.', lastName: 'Patel' }, about: 'math' });
+  check('new plan: test help → ok', help.ok, help.feedback);
+  check('new plan: test help → nobody on Cc', !help.ccMom && !help.ccAdvisor && !help.ccTrainer, JSON.stringify(help));
+  const grade = await plan('meeting', 'want to talk about my grade on the last quiz, free thursday after school', { sender: { name: 'Mr. Patel', title: 'Mr.', lastName: 'Patel' }, about: 'math' });
+  check('new plan: meeting about a grade → Cc Mom and advisor', grade.ccMom && grade.ccAdvisor, JSON.stringify(grade));
+  const hurt = await plan('injury', 'rolled my ankle at recess, cant practice today', { sender: { name: 'Coach Diaz', title: 'Coach', lastName: 'Diaz' }, toRole: 'coach', about: 'baseball' });
+  check('new plan: injury to coach → Cc trainer and Mom', hurt.ccTrainer && hurt.ccMom, JSON.stringify(hurt));
+  check('rule: Cc grading agrees', R.ccFeedback(missed, ['mom'], 'teacher').ok === true);
+
+  const nm = { ...lee, purpose: 'missed', plan: 'out sick tuesday, need what i missed', asks: missed.mustInclude };
+  const cn = (step, answer) => run('check', { step, mail: nm, roles: {}, answer });
+  check('new subject: "question" → not ok', !(await cn('new_subject', 'question')).ok);
+  check('new subject: specific → ok', (await cn('new_subject', 'Missed science on Tuesday')).ok);
+  check('new opener: reason → ok (no thank-you needed)', (await cn('new_thanks', 'I was absent on Tuesday becuase I was sick.')).ok);
+  const vb = await cn('new_body', 'I was sick.');
+  check('new body: no request → not ok', !vb.ok, vb.feedback);
+  check('new body: clear request → ok', (await cn('new_body', 'Could you tell me what I missed in class on Tuesday and if there was any homework?')).ok);
+  const nw = await run('whole', { mail: nm, roles: {}, answer: 'Dear Mrs. Lee,\n\nI was absent on Tuesday because I was sick. Could you tell me what I missed and if there was homework?\n\nThank you for your help.\n\nThank you,\nBurke' });
+  check('new whole: good draft → all ok', (nw.items || []).length === 6 && nw.items.every(i => i.ok), JSON.stringify(nw.items));
+  const spS = await run('polish', { parts: { subject: 'Missed sciense on Tuesday', body: 'could you tell me what i missed' } });
+  const spU = R.usableIssues((spS.issues || []).filter(x => x.part !== 'subject' || x.kind === 'spelling'), { subject: 'Missed sciense on Tuesday', body: 'could you tell me what i missed' });
+  check('polish: subject gets spelling only', spU.filter(x => x.part === 'subject').every(x => x.kind === 'spelling') && spU.some(x => x.part === 'subject' && /science/.test(x.options.find(o => o.ok).text)), JSON.stringify(spS.issues));
 } catch (e) { fail++; console.log('FAIL  crashed →', e.message); }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

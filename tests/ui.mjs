@@ -80,7 +80,7 @@ try {
   await write(p, 'my ankle feels better becuase i iced it and i will play saturday'); await see(p, 'Good.'); await shot(p, '09-body'); await tap(p, 'Next');
   await see(p, 'Wrap it up.'); await write(p, 'see you at practice'); await see(p, 'Good.'); await tap(p, 'Next');
   await see(p, 'Pick a sign-off.'); { const all = await p.locator('button.opt').allTextContents(); const bad = all.find(t => !/^(Thank you|Best|Sincerely), \/ Burke$/.test(t));
-    await p.locator('button.opt', { hasText: bad }).first().click(); await see(p, 'Not that one'); }
+    await p.locator('button.opt').nth(all.indexOf(bad)).click(); await see(p, 'Not that one'); }
   await p.locator('button.opt', { hasText: /^(Thank you|Best|Sincerely), \/ Burke$/ }).first().click(); await tap(p, 'Next');
   // polish: becuase, then end periods (the two " i " are skipped: same spot twice)
   await see(p, 'Last check');
@@ -102,14 +102,14 @@ try {
   assert.equal(saved[0].replyWanted, 'reply_all');
   await shot(p, '12-done');
   // resume: reload mid-way keeps the work
-  await tap(p, 'Home'); await tap(p, 'Practice email'); await see(p, 'Your practice email'); await tap(p, 'Start');
+  await tap(p, 'Home'); await p.getByRole('button', { name: 'Answer one' }).click(); await see(p, 'Your practice email'); await tap(p, 'Start');
   await see(p, 'Who\'s on this email?'); await p.reload(); await see(p, 'Who\'s on this email?');
 
   /* ---------- parent view, then level 2 as Burke ---------- */
   p = await page('&as=parent');
   await see(p, 'Burke\'s emails'); await shot(p, '13-parent'); await noSideScroll(p, 'parent');
   await p.getByRole('button', { name: /^2\. Draft it/ }).click(); await p.waitForTimeout(300);
-  await tap(p, 'Try it as Burke'); await tap(p, 'Practice email'); await see(p, 'Your practice email'); await tap(p, 'Start');
+  await tap(p, 'Try it as Burke'); await p.getByRole('button', { name: 'Answer one' }).click(); await see(p, 'Your practice email'); await tap(p, 'Start');
   const ps = p.locator('.person'); await ps.nth(0).getByRole('button', { name: 'Coach / AD' }).click(); await ps.nth(1).getByRole('button', { name: 'Trainer' }).click(); await tap(p, 'Next');
   await write(p, 'if i will play saturday and how my ankle feels'); await see(p, 'Good.'); await tap(p, 'Next');
   await p.getByRole('button', { name: 'Yes, it needs an answer' }).click(); await tap(p, 'Next');
@@ -123,6 +123,72 @@ try {
   await see(p, 'Last check'); await polishAll(p); await tap(p, 'See your email');
   await see(p, 'Your finished email'); await see(p, 'If this were real');
   await tap(p, 'Done'); await see(p, 'Clean email.');
+
+  /* ---------- new email, level 1 practice (Mrs. Lee, missed class) ---------- */
+  p = await page();
+  await see(p, 'Write a new email');
+  await p.evaluate(() => localStorage.setItem('email-newpractice-n', '0'));
+  await p.getByRole('button', { name: 'Write one' }).click();
+  await see(p, 'Practice: write a new email'); await see(p, 'out sick on Tuesday'); await shot(p, '16-new-situation'); await tap(p, 'Start');
+  await see(p, 'Who are you writing to?'); await p.locator('.card b', { hasText: 'Mrs. Lee' }).waitFor(); await tap(p, 'Next');
+  await see(p, 'Is there already an email about this?');
+  await p.getByRole('button', { name: /already an email/ }).click(); await see(p, 'Look again');
+  await p.getByRole('button', { name: /something new/ }).click(); await tap(p, 'Next');
+  await see(p, 'Why are you writing?'); await p.getByRole('button', { name: /^Help before a test/ }).click(); await see(p, 'Read the situation again');
+  await p.getByRole('button', { name: /^I missed a class/ }).click(); await tap(p, 'Next');
+  await see(p, 'What happened, and what do you need from Mrs. Lee?'); await see(p, 'Which day did you miss');
+  await write(p, 'i was sick'); await see(p, 'Which day did you miss?');
+  await write(p, 'i was out sick tuesday and need to know what i missed and the homework'); await see(p, 'Good plan.'); await shot(p, '17-new-plan'); await tap(p, 'Next');
+  await see(p, 'Who else goes on Cc?'); await shot(p, '18-new-cc');
+  await p.getByRole('button', { name: 'Check' }).click(); await see(p, 'Pick who goes on Cc');
+  await p.getByRole('button', { name: /My advisor/ }).click(); await p.getByRole('button', { name: 'Check' }).click();
+  await see(p, 'Your advisor doesn\'t need this one'); await see(p, 'Mom should be on this');
+  await p.getByRole('button', { name: /My advisor/ }).click(); await p.getByRole('button', { name: /☐ Mom/ }).click(); await p.getByRole('button', { name: 'Check' }).click();
+  await see(p, 'Right: Cc Mom.'); await tap(p, 'Next');
+  await see(p, 'Write a subject line.'); await write(p, 'question'); await see(p, 'Not yet');
+  await write(p, 'missed science tuesday'); await see(p, 'Good.'); await tap(p, 'Next');
+  await see(p, 'Pick the greeting.'); await p.locator('button.opt', { hasText: /^(Dear|Hello) Mrs\. Lee,$/ }).click(); await tap(p, 'Next');
+  await see(p, 'Say why you\'re writing.'); await write(p, 'i was absent on tuesday becuase i was sick'); await see(p, 'Good.'); await tap(p, 'Next');
+  await see(p, 'Now ask for what you need.'); await see(p, 'Make sure you say'); await write(p, 'could you tell me what i missed and the homework?'); await see(p, 'Good.'); await tap(p, 'Next');
+  await see(p, 'Wrap it up.'); await write(p, 'thank you for your help'); await see(p, 'Good.'); await tap(p, 'Next');
+  await see(p, 'Pick a sign-off.'); await p.locator('button.opt', { hasText: /^(Thank you|Best|Sincerely), \/ Burke$/ }).first().click(); await tap(p, 'Next');
+  await see(p, 'Last check'); await polishAll(p); await tap(p, 'See your email');
+  await see(p, 'Your finished email'); await see(p, 'New message'); await see(p, 'Cc: add Mom');
+  const subj = await p.locator('pre.final').first().textContent();
+  assert.equal(subj, 'missed science tuesday');
+  const body = await p.locator('pre.final').nth(1).textContent();
+  assert.match(body, /^(Dear|Hello) Mrs\. Lee,\n\n[iI] was absent on tuesday because [iI] was sick\. could you tell me what [iI] missed and the homework\?\n\nthank you for your help\.\n\n(Thank you|Best|Sincerely),\nBurke$/);
+  await shot(p, '19-new-final'); await noSideScroll(p, 'new final');
+  await tap(p, 'Done'); await see(p, 'Done.');
+  const saved2 = await p.evaluate(() => window.__saved);
+  const last = saved2.at(-1);
+  assert.equal(last.kind, 'new'); assert.deepEqual(last.copied, ['mom']); assert.equal(last.decisions.cc.firstTry, false); assert.match(last.final, /^Subject: missed science tuesday/);
+
+  /* ---------- new email: "already an email" practice ends early and doesn't count ---------- */
+  await p.evaluate(() => localStorage.setItem('email-newpractice-n', '3'));
+  await tap(p, 'Home'); await p.getByRole('button', { name: 'Write one' }).click();
+  await see(p, 'already emailed you yesterday'); await tap(p, 'Start'); await tap(p, 'Next');
+  await p.getByRole('button', { name: /already an email/ }).click(); await see(p, 'Right. Answer that email.'); await tap(p, 'Next');
+  await see(p, 'Answer that email instead.'); await tap(p, 'Done');
+
+  /* ---------- new email, real, level 2 draft ---------- */
+  p = await page('&as=parent');
+  await p.getByRole('button', { name: /^2\. Draft it/ }).click(); await p.waitForTimeout(300);
+  await tap(p, 'Try it as Burke'); await tap(p, 'Write a new email');
+  await see(p, 'Who are you writing to?');
+  await p.getByRole('button', { name: 'Teacher' }).click(); await p.getByRole('button', { name: 'Mrs.', exact: true }).click();
+  await p.getByPlaceholder('Last name').fill('lee'); await p.getByPlaceholder(/Science/).fill('science');
+  await shot(p, '20-new-who'); await tap(p, 'Next');
+  await p.getByRole('button', { name: /something new/ }).click(); await tap(p, 'Next');
+  await p.getByRole('button', { name: /^I missed a class/ }).click(); await tap(p, 'Next');
+  await write(p, 'out sick tuesday, need what i missed'); await see(p, 'Good plan.'); await tap(p, 'Next');
+  await p.getByRole('button', { name: /☐ Mom/ }).click(); await p.getByRole('button', { name: 'Check' }).click(); await see(p, 'Right: Cc Mom.'); await tap(p, 'Next');
+  await write(p, 'Missed science Tuesday'); await see(p, 'Good.'); await tap(p, 'Next');
+  await see(p, 'Write your email to Mrs. Lee.'); await see(p, 'Why you\'re writing');
+  await write(p, 'Dear Mrs. Lee,\n\nI was absent on Tuesday. Could you tell me what I missed?\n\nThank you for your help.\n\nThank you,\nBurke');
+  await see(p, '✓ What you need'); await tap(p, 'Next');
+  await see(p, 'Last check'); await polishAll(p); await tap(p, 'See your email');
+  await see(p, 'Your email is ready'); await see(p, 'Copy subject');
 
   assert.deepEqual(errors.filter(e => !/fonts|ERR_FAILED|net::/.test(e)), []);
   console.log('Walkthrough passed.');

@@ -154,7 +154,7 @@ export const POLISH_TOOL = {
 };
 export const POLISH_RULES = `Find only mechanical mistakes in Burke's writing: misspelled words (including sound-alike mix-ups like there/their, to/too), missing capitals (start of a sentence, "I", names, days, months, Mr./Mrs.), missing end punctuation, and missing apostrophes in contractions (dont, im).
 Do not change his wording, word choice, style or grammar beyond that. If the part is not "whole", do not flag a greeting or sign-off (the app built those). For "whole", also check that the greeting ends with a comma and that Mr./Mrs. and names are capitalized.
-Each issue becomes a tap choice: the fragment is replaced by whichever option he taps. For a missing period at the end, the fragment is the last word and the right option is that word plus the period. If one word needs more than one fix (for example a capital AND the final period, like saturday → Saturday.), make it ONE issue whose right option has every fix; never list two issues on the same words. Make each fragment appear exactly once in its part (widen it by a word if needed). Return an empty list if it's clean.`;
+Each issue becomes a tap choice: the fragment is replaced by whichever option he taps. For a missing period at the end, the fragment is the last word and the right option is that word plus the period. If one word needs more than one fix (for example a capital AND the final period, like saturday → Saturday.), make it ONE issue whose right option has every fix; never list two issues on the same words. Make each fragment appear exactly once in its part (widen it by a word if needed). For the "subject" part, flag only misspelled words (subject lines don't need periods or sentence capitals). Return an empty list if it's clean.`;
 
 /* ---------- 5. a made-up email for practice ---------- */
 export const PRACTICE_TOOL = { ...READ_TOOL, name: 'practice_email', description: 'A realistic made-up email to Burke for practice, described the same way as a real one.' };
@@ -180,3 +180,84 @@ export const SCENARIOS = [
   'A teacher asks two things: whether he has chosen his history project topic, and whether he needs more time on the outline. His advisor is copied.',
   'His advisor asks how the first week back after his absence went and whether he has caught up on missed work in math and science.',
 ];
+
+/* ---------- NEW emails Burke starts himself ---------- */
+export const PURPOSES = {
+  missed: 'He missed a class and needs to find out what he missed / catch up',
+  testHelp: 'He wants extra help before a test or quiz',
+  meeting: 'He wants to set up a meeting about something',
+  extension: 'He needs more time on an assignment, or has missing work',
+  question: 'He has a question about an assignment',
+  injury: 'He is hurt or sick and can\'t play or practice',
+  other: 'Something else',
+};
+export const composeBlock = m => `BURKE IS STARTING A NEW EMAIL (not a reply).
+To: ${m.sender && m.sender.name || '?'} (${m.toRole || 'school staff'})${m.about ? `, about ${m.about}` : ''}
+Why he's writing: ${PURPOSES[m.purpose] || m.purpose || '?'}
+His plan, in his own words: ${m.plan ? JSON.stringify(m.plan) : '(not written yet)'}
+${m.asks && m.asks.length ? `What the email must say: ${JSON.stringify(m.asks)}` : ''}`;
+
+export const PLAN_TOOL = {
+  name: 'plan_check',
+  description: 'Check Burke\'s plan for a new email and decide who should be copied.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      ok: { type: 'boolean', description: 'true if the plan says what he needs and the key facts the reader will need' },
+      feedback: { type: 'string', description: 'One or two sentences to Burke. If not ok, ask about the one missing fact (which day, which test, when he is free…) without writing it for him.' },
+      topic: { type: 'string', description: '3 to 6 words, e.g. "Missed science on Tuesday"' },
+      mustInclude: { type: 'array', items: { type: 'string' }, description: '2 to 4 short items the email must say, in plain words, from HIS plan (e.g. "Which day you missed", "Ask what you missed", "When you could come in"). Never invent facts he did not give.' },
+      ccMom: { type: 'boolean' }, ccMomWhy: { type: 'string', description: 'One sentence to Burke' },
+      ccAdvisor: { type: 'boolean' }, ccAdvisorWhy: { type: 'string', description: 'One sentence to Burke' },
+      ccTrainer: { type: 'boolean' }, ccTrainerWhy: { type: 'string', description: 'One sentence to Burke' },
+    },
+    required: ['ok', 'feedback', 'topic', 'mustInclude', 'ccMom', 'ccMomWhy', 'ccAdvisor', 'ccAdvisorWhy', 'ccTrainer', 'ccTrainerWhy'],
+  },
+};
+export const PLAN_RULES = `Burke is about to write a new email. He was asked: "What happened, and what do you need from them?" He answered in his own words (spelling doesn't matter).
+ok = it says what he needs (what he missed, help, a meeting, more time, an answer…) plus the key facts the reader needs for this purpose:
+- missed class: which day/class he missed (and why only if he gave it).
+- help before a test: which test and roughly when it is, and when he could meet.
+- meeting: what it's about and when he's free.
+If one key fact is missing, ok = false and ask about just that fact. Don't demand more than the reader needs.
+
+Who should be copied (Cc) on this new email:
+- his mom: true for asking to meet, an absence or missed class, moving a test or deadline, an extension or missing work, grades, an injury or being sick, or any problem. false for extra help before a test, a simple question about an assignment, or a thank-you.
+- his advisor: true for a missed test or quiz, an extension or missing work, grades, a problem or conflict, a meeting about a concern, or missing more than one day. false for extra help, a simple question, one missed class where he's just asking what he missed, or a thank-you. Always false if he's writing TO his advisor.
+- the trainer: true only when he's writing to a coach or athletic director about an injury or being unable to play or practice. Always false if he's writing TO the trainer.
+Each Why sentence explains the call to Burke in plain words.`;
+
+Object.assign(STEP_RULES, {
+  new_subject: `This is the SUBJECT LINE of his new email.
+ok = 2 to 8 words that name the topic specifically (the class, test, or day when it matters), like a label. Not ok: vague ("Hi", "Question", "Help", "Email", "Hello"), a whole sentence, or all capital letters. Ignore capitalization and spelling.`,
+  new_thanks: `This is the opening of his NEW email, right after the greeting.
+ok = one or two polite sentences that say why he's writing (e.g. starting "I'm writing to ask…" or "I was absent on…"). A friendly line first ("I hope you're having a good week.") is fine, but the reason must also be there. This is not a reply, so don't require a thank-you. Not ok if the reason is missing, or it's rude or too casual.`,
+  new_body: `This is the main part of his NEW email, after the opening.
+ok = it covers each item in "What the email must say" with the specifics the reader needs (which day, which test, days/times he's free), and makes a clear, polite request (a question, or "Could I…", "Would you be able to…"). Short and direct is enough. Not ok if an item is missing or there's no clear request. Ignore spelling and punctuation.`,
+  new_closing: `This is the closing line of his NEW email, before the sign-off.
+ok = one polite sentence that thanks them for their help or time, or says he looks forward to hearing back. Not ok if empty, rude, or a repeat of the request.`,
+});
+
+export const NEW_WHOLE_TOOL = {
+  name: 'new_draft_check',
+  description: 'Check Burke\'s whole new email part by part.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      items: { type: 'array', items: { type: 'object', properties: {
+        part: { type: 'string', enum: ['greeting', 'purpose', 'request', 'closing', 'signoff', 'tone'] },
+        ok: { type: 'boolean' },
+        note: { type: 'string', description: 'One short sentence. If not ok, what to change without writing it for him.' },
+      }, required: ['part', 'ok', 'note'] } },
+    },
+    required: ['items'],
+  },
+};
+export const NEW_WHOLE_RULES = `Burke wrote a whole NEW email himself (the subject line is separate). Check each part and return all six items:
+- greeting: "Dear"/"Hello" + the right title and last name + a comma. Not "Hey", not a first name.
+- purpose: near the start, says why he's writing.
+- request: covers each item in "What the email must say" with the specifics needed, and asks clearly and politely.
+- closing: a polite wrap-up sentence (thanks for your help/time, or looking forward to hearing back).
+- signoff: "Thank you," / "Best," / "Sincerely," on its own line, then "Burke".
+- tone: polite, no slang, right for a teacher.
+A short, direct email is fine. Ignore spelling, capitals and punctuation except the greeting comma.`;

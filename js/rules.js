@@ -160,9 +160,10 @@ export const LEVELS = {
 // Move up after 15 clean emails out of the last 20 at this level, with variety, so rushing through
 // easy ones doesn't count. A sloppy one costs him but doesn't wipe out his progress.
 export const WINDOW = 20, NEED_CLEAN = 15, NEED_EACH = 3;
-export const KINDS = [['replyAll', 'needed Reply all'], ['ccMom', 'needed CC Mom'], ['multi', 'had 2+ questions']];
+export const KINDS = [['replyAll', 'needed Reply all'], ['ccMom', 'needed CC Mom'], ['multi', 'had 2+ questions'], ['new', 'new emails you started']];
 export function tagsFor(mail, momAlreadyOn = false) {
-  return { replyAll: correctReplyType(mail) === 'reply_all', ccMom: !!mail.ccMom && !momAlreadyOn, multi: (mail.asks || []).length >= 2 };
+  if (mail.compose) return { replyAll: false, ccMom: !!mail.ccMom, multi: false, new: true };
+  return { replyAll: correctReplyType(mail) === 'reply_all', ccMom: !!mail.ccMom && !momAlreadyOn, multi: (mail.asks || []).length >= 2, new: false };
 }
 /** Where he stands at this level. */
 export function standing(p) {
@@ -186,3 +187,65 @@ export function nextProgress(p, clean, tags, counts = true) {
   if (level < 3 && standing(np).ready) return { ...np, level: level + 1, recent: [], movedUp: true };
   return np;
 }
+
+/* ---------- new emails Burke starts himself ---------- */
+export const PURPOSES = [
+  ['missed', 'I missed a class', 'Find out what you missed'],
+  ['testHelp', 'Help before a test', 'Ask for extra help or a time to meet'],
+  ['meeting', 'Set up a meeting', 'For another reason'],
+  ['extension', 'More time or missing work', 'Ask for an extension or say it\'s coming'],
+  ['question', 'A question about an assignment', ''],
+  ['injury', 'I\'m hurt or sick', 'Can\'t play or practice'],
+  ['other', 'Something else', ''],
+];
+export const purposeLabel = id => (PURPOSES.find(p => p[0] === id) || [, 'Something else'])[1];
+export const PLAN_HINTS = {
+  missed: 'Which day did you miss, and what do you need? (What you missed, the homework, a time to make up a quiz)',
+  testHelp: 'Which test is it, when is it, and when could you meet?',
+  meeting: 'What do you want to talk about, and when are you free?',
+  extension: 'Which assignment, and what do you need? (More time, or when you\'ll turn it in)',
+  question: 'Which assignment, and what\'s your question?',
+  injury: 'What happened, and what will you miss?',
+  other: 'What happened, and what do you need from them?',
+};
+
+/** Who can be copied, given who he's writing to. */
+export function ccChoices(toRole) {
+  return [['mom', 'Mom'], ['advisor', 'My advisor'], ['trainer', 'The trainer']]
+    .filter(([id]) => !(id === 'advisor' && toRole === 'advisor') && !(id === 'trainer' && toRole === 'trainer') && !(id === 'mom' && toRole === 'parent'));
+}
+/** Grade his Cc picks against what the coach decided. picked: array of ids ('mom','advisor','trainer'); [] = nobody. */
+export function ccFeedback(mail, picked, toRole) {
+  const want = { mom: !!mail.ccMom, advisor: !!mail.ccAdvisor && toRole !== 'advisor', trainer: !!mail.ccTrainer && toRole !== 'trainer' };
+  const why = { mom: mail.ccMomWhy, advisor: mail.ccAdvisorWhy, trainer: mail.ccTrainerWhy };
+  const name = { mom: 'Mom', advisor: 'Your advisor', trainer: 'The trainer' };
+  const set = new Set(picked), notes = [];
+  for (const [id] of ccChoices(toRole)) {
+    if (want[id] && !set.has(id)) notes.push(`${name[id]} should be on this. ${why[id] || ''}`.trim());
+    if (!want[id] && set.has(id)) notes.push(`${name[id]} doesn't need this one. ${why[id] || ''}`.trim());
+  }
+  const wanted = ccChoices(toRole).filter(([id]) => want[id]).map(([, l]) => l.replace('My ', 'your ').replace('The ', 'the '));
+  if (!notes.length) return { ok: true, title: wanted.length ? `Right: Cc ${wanted.join(' and ')}.` : 'Right: nobody else.',
+    why: ccChoices(toRole).filter(([id]) => want[id]).map(([id]) => why[id]).filter(Boolean).join(' ') || 'This one is just between you and them.' };
+  return { ok: false, title: 'Not quite.', why: notes.join(' ') };
+}
+
+/** Practice situations for starting a new email (no Claude needed to make them). */
+export const NEW_PRACTICE = [
+  { text: 'You were out sick on Tuesday and missed Mrs. Lee\'s science class. You want to know what you missed and whether there was homework.',
+    to: { title: 'Mrs.', lastName: 'Lee', role: 'teacher', about: 'science' }, purpose: 'missed', existing: false },
+  { text: 'You have a math test with Mr. Patel next Thursday, and you\'re stuck on solving inequalities. You\'re free Monday or Tuesday before school.',
+    to: { title: 'Mr.', lastName: 'Patel', role: 'teacher', about: 'math' }, purpose: 'testHelp', existing: false },
+  { text: 'You want to talk to your advisor, Mrs. Ortiz, about how to keep track of your homework better. You\'re free during lunch on Wednesday or Friday.',
+    to: { title: 'Mrs.', lastName: 'Ortiz', role: 'advisor', about: '' }, purpose: 'meeting', existing: false },
+  { text: 'Mrs. Lee already emailed you yesterday about your missing lab worksheet. Now you have a question about it.',
+    to: { title: 'Mrs.', lastName: 'Lee', role: 'teacher', about: 'science' }, purpose: 'question', existing: true },
+  { text: 'You missed Mr. Grant\'s history class on Friday for a doctor\'s appointment, and there was a quiz. You need to find out when you can make it up.',
+    to: { title: 'Mr.', lastName: 'Grant', role: 'teacher', about: 'history' }, purpose: 'missed', existing: false },
+  { text: 'You rolled your ankle at recess and can\'t practice today. You need to tell Coach Diaz.',
+    to: { title: 'Coach', lastName: 'Diaz', role: 'coach', about: 'baseball' }, purpose: 'injury', existing: false },
+  { text: 'Your English test with Mrs. Kent is on Monday. You want to come in for extra help on Friday after school.',
+    to: { title: 'Mrs.', lastName: 'Kent', role: 'teacher', about: 'English' }, purpose: 'testHelp', existing: false },
+  { text: 'You want to meet with Mr. Patel to talk about your grade on the last math quiz. You\'re free Thursday after school.',
+    to: { title: 'Mr.', lastName: 'Patel', role: 'teacher', about: 'math' }, purpose: 'meeting', existing: false },
+];

@@ -21,14 +21,30 @@ export async function coachMock({ action, ...d }) {
     case 'progress': return { progress, sessions: saved.slice().reverse() };
     case 'read': return /collapsed/.test(d.text || '') ? COLLAPSED : AD_EMAIL;
     case 'practice': return { ...AD_EMAIL, practice: true, scenario: d.scenario };
+    case 'plan': {
+      const a = d.answer.toLowerCase();
+      const ok = /tuesday|monday|thursday|friday|wednesday/.test(a);
+      return { ok, feedback: ok ? 'You said what happened and what you need.' : 'Which day did you miss?', topic: 'Missed science on Tuesday',
+        mustInclude: ['Which day you missed', 'Ask what you missed and the homework'],
+        ccMom: true, ccMomWhy: 'You missed school, so Mom gets a copy.', ccAdvisor: false, ccAdvisorWhy: 'One missed class is just between you and Mrs. Lee.', ccTrainer: false, ccTrainerWhy: 'Not about an injury.' };
+    }
     case 'check': {
       const a = d.answer.toLowerCase();
+      if (d.step === 'new_subject') return a.split(/\s+/).length >= 2 ? { ok: true, feedback: 'Clear and specific.' } : { ok: false, feedback: 'Say what it\'s about, like the class and the day.' };
+      if (d.step === 'new_thanks') return /writing|absent|missed|out/.test(a) ? { ok: true, feedback: 'You said why you\'re writing.' } : { ok: false, feedback: 'Say why you\'re writing.' };
+      if (d.step === 'new_body') return /\?|could/.test(a) ? { ok: true, feedback: 'Clear request.' } : { ok: false, feedback: 'Ask what you missed.' };
+      if (d.step === 'new_closing') return a.length > 8 ? { ok: true, feedback: 'Polite.' } : { ok: false, feedback: 'Thank her for her help.' };
       if (d.step === 'understand') return /play|saturday/.test(a) && /ankle|feel/.test(a) ? { ok: true, feedback: 'You caught both questions.' } : { ok: false, feedback: 'You got one part. There\'s one more question in the email.' };
       if (d.step === 'body') return /saturday|play/.test(a) && /ankle|feel|better/.test(a) ? { ok: true, feedback: 'You answered both questions.' } : { ok: false, feedback: 'Say how your ankle feels today too.' };
       return a.length > 8 ? { ok: true, feedback: 'That works.' } : { ok: false, feedback: 'Make it a full sentence.' };
     }
     case 'whole': {
       const t = d.answer;
+      if (d.mail.compose) return { items: [
+        { part: 'greeting', ok: /^(dear|hello) mrs\. lee,/i.test(t.trim()), note: 'Start with Dear Mrs. Lee,' },
+        { part: 'purpose', ok: /absent|missed|writing/i.test(t), note: 'Say why you\'re writing.' },
+        { part: 'request', ok: /\?/.test(t), note: 'Ask what you missed.' },
+        { part: 'closing', ok: true, note: 'Good.' }, { part: 'signoff', ok: /burke\s*$/i.test(t.trim()), note: 'Sign off with your name.' }, { part: 'tone', ok: true, note: 'Polite.' }] };
       return { items: [
         { part: 'greeting', ok: /^(dear|hello|hi) mr\. grant,/i.test(t.trim()), note: 'Start with Dear Mr. Grant, and a comma.' },
         { part: 'thanks', ok: /thank/i.test(t), note: 'Thank him near the start.' },

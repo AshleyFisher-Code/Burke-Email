@@ -145,7 +145,7 @@ t('clean: every tap right first time, no writing step at 3+ tries', () => {
 });
 
 t('levels: 15 clean of the last 20, with 3+ of each kind', () => {
-  const all = { replyAll: true, ccMom: true, multi: true }, plain = { replyAll: false, ccMom: false, multi: false };
+  const all = { replyAll: true, ccMom: true, multi: true, new: true }, plain = { replyAll: false, ccMom: false, multi: false, new: false };
   let p = { level: 1, recent: [] };
   for (let i = 0; i < 14; i++) { p = R.nextProgress(p, true, all); assert.equal(p.level, 1); }
   p = R.nextProgress(p, true, all); assert.equal(p.level, 2); assert.equal(p.movedUp, true); assert.deepEqual(p.recent, []);
@@ -158,9 +158,11 @@ t('levels: 15 clean of the last 20, with 3+ of each kind', () => {
   for (let i = 0; i < 3; i++) p = R.nextProgress(p, true, { ...plain, replyAll: true });
   for (let i = 0; i < 3; i++) p = R.nextProgress(p, true, { ...plain, ccMom: true });
   assert.equal(p.level, 1);
-  for (let i = 0; i < 2; i++) p = R.nextProgress(p, true, { ...plain, multi: true });
+  for (let i = 0; i < 3; i++) p = R.nextProgress(p, true, { ...plain, multi: true });
   assert.equal(p.level, 1);
-  p = R.nextProgress(p, true, { ...plain, multi: true }); assert.equal(p.level, 2);
+  for (let i = 0; i < 2; i++) p = R.nextProgress(p, true, { ...plain, new: true });
+  assert.equal(p.level, 1);
+  p = R.nextProgress(p, true, { ...plain, new: true }); assert.equal(p.level, 2);
 
   // a rushed one costs him but doesn't reset: 14 clean + 1 sloppy + 1 clean = 15 of 16
   p = { level: 2, recent: [] };
@@ -183,8 +185,38 @@ t('levels: 15 clean of the last 20, with 3+ of each kind', () => {
 });
 
 t('tags: what kind of email it was', () => {
-  assert.deepEqual(R.tagsFor({ ...adMail, asks: ['a', 'b'] }), { replyAll: true, ccMom: true, multi: true });
-  assert.deepEqual(R.tagsFor({ ...adMail, asks: ['a'] }, true), { replyAll: true, ccMom: false, multi: false });
+  assert.deepEqual(R.tagsFor({ ...adMail, asks: ['a', 'b'] }), { replyAll: true, ccMom: true, multi: true, new: false });
+  assert.deepEqual(R.tagsFor({ ...adMail, asks: ['a'] }, true), { replyAll: true, ccMom: false, multi: false, new: false });
+  assert.deepEqual(R.tagsFor({ compose: true, ccMom: true, asks: ['a', 'b'] }), { replyAll: false, ccMom: true, multi: false, new: true });
+});
+
+t('new email: Cc choices and grading', () => {
+  assert.deepEqual(R.ccChoices('teacher').map(x => x[0]), ['mom', 'advisor', 'trainer']);
+  assert.deepEqual(R.ccChoices('advisor').map(x => x[0]), ['mom', 'trainer']);
+  assert.deepEqual(R.ccChoices('trainer').map(x => x[0]), ['mom', 'advisor']);
+  const missed = { ccMom: true, ccMomWhy: 'You missed school.', ccAdvisor: false, ccTrainer: false };
+  assert.equal(R.ccFeedback(missed, ['mom'], 'teacher').ok, true);
+  assert.equal(R.ccFeedback(missed, [], 'teacher').ok, false);
+  assert.match(R.ccFeedback(missed, [], 'teacher').why, /Mom should be on this/);
+  assert.match(R.ccFeedback(missed, ['mom', 'advisor'], 'teacher').why, /advisor doesn't need/);
+  const help = { ccMom: false, ccAdvisor: false, ccTrainer: false };
+  assert.equal(R.ccFeedback(help, [], 'teacher').ok, true);
+  assert.equal(R.ccFeedback(help, [], 'teacher').title, 'Right: nobody else.');
+  const injury = { ccMom: true, ccAdvisor: false, ccTrainer: true };
+  assert.equal(R.ccFeedback(injury, ['mom', 'trainer'], 'coach').ok, true);
+  assert.equal(R.ccFeedback(injury, ['mom', 'trainer'], 'coach').title, 'Right: Cc Mom and the trainer.');
+  // writing TO the advisor: advisor flag ignored even if the coach set it
+  assert.equal(R.ccFeedback({ ccMom: true, ccAdvisor: true, ccTrainer: false }, ['mom'], 'advisor').ok, true);
+});
+
+t('new email practice situations are complete', () => {
+  for (const sc of R.NEW_PRACTICE) {
+    assert.ok(sc.text.length > 40 && sc.to.title && sc.to.lastName && sc.to.role);
+    assert.ok(R.PURPOSES.some(p => p[0] === sc.purpose));
+    assert.ok(sc.text.includes(sc.to.lastName));
+  }
+  for (const id of ['missed', 'testHelp', 'meeting']) assert.ok(R.NEW_PRACTICE.filter(sc => sc.purpose === id && !sc.existing).length >= 2, id);
+  assert.ok(R.NEW_PRACTICE.some(sc => sc.existing));
 });
 
 console.log(`All ${n} rule groups passed.`);

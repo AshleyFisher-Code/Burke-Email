@@ -1,7 +1,8 @@
 import { STUDENT_UID, PARENT_UID, STUDENT_NAME, MOM_EMAIL, APP_VERSION } from './config.js';
 import { ask, shrink, isMock } from './coach.js';
 import { ROLES, roleLabel, TITLES, displayName, others, momOnEmail, correctReplyType, replyFeedback, ccMomFeedback,
-  greetingOptions, signoffOptions, shuffle, assemble, applyFix, usableIssues, LEVELS, NEED_CLEAN, NEED_EACH, WINDOW, KINDS, standing, tagsFor, isClean, nextProgress } from './rules.js';
+  greetingOptions, signoffOptions, shuffle, assemble, applyFix, usableIssues, LEVELS, NEED_CLEAN, NEED_EACH, WINDOW, KINDS, standing, tagsFor, isClean, nextProgress,
+  PURPOSES, purposeLabel, PLAN_HINTS, ccChoices, ccFeedback, NEW_PRACTICE } from './rules.js';
 
 /* ---------- tiny DOM helper ---------- */
 const h = (tag, attrs = {}, ...kids) => {
@@ -75,8 +76,13 @@ const tree = (title, rows) => {
 const branch = (q, a, cls = '') => h('div', { class: 'branch ' + cls }, h('span', { text: q }), h('b', { text: a }));
 
 /* ---------- routing ---------- */
+const isNew = () => !!(S && S.kind === 'new');
 const STEP_ORDER = () => {
   const lv = level();
+  if (isNew()) {
+    const write = lv === 1 ? ['greeting', 'thanks', 'body', 'closing', 'signoff'] : ['whole'];
+    return [...(S.mode === 'practice' ? ['cSituation'] : []), 'cWho', 'cExisting', 'cWhy', 'cPlan', 'cCc', 'subject', ...write, 'polish', 'final'];
+  }
   const base = ['add', 'show', 'who', 'understand', 'needReply'];
   if (S && S.noReply) return [...base, 'noreply'];
   const write = lv === 1 ? ['greeting', 'thanks', 'body', 'closing', 'signoff'] : ['whole'];
@@ -90,11 +96,11 @@ function next() {
 function back() {
   const o = STEP_ORDER(); let i = o.indexOf(S.step) - 1;
   if (o[i] === 'ccMom' && S.momAlreadyOn) i--;
-  if (i < 1) return quit();
+  if (i < (isNew() ? 0 : 1)) return quit();
   S.step = o[i]; saveRun(); route();
 }
 function quit() {
-  if (S && S.step !== 'add' && !confirm('Stop this email? Your work on it will be lost.')) return;
+  if (S && S.step !== 'add' && S.step !== 'cWho' && S.step !== 'cSituation' && !confirm('Stop this email? Your work on it will be lost.')) return;
   S = null; saveRun(); route();
 }
 function route() {
@@ -103,7 +109,21 @@ function route() {
   ({ add: renderAdd, show: renderShow, who: renderWho, understand: () => renderWrite('understand'), needReply: renderNeedReply,
     noreply: renderNoReply, replyType: renderReplyType, ccMom: renderCcMom, greeting: renderGreeting,
     thanks: () => renderWrite('thanks'), body: () => renderWrite('body'), closing: () => renderWrite('closing'),
+    cSituation: renderSituation, cWho: renderCWho, cExisting: renderCExisting, cExistingYes: renderCExistingYes, cWhy: renderCWhy, cPlan: renderCPlan, cCc: renderCCc,
+    subject: () => renderWrite('subject'),
     signoff: renderSignoff, loadPractice, whole: renderWhole, polish: renderPolish, final: renderFinal, done: renderDone }[S.step] || renderHome)();
+}
+function newCompose(mode) {
+  S = { id: Date.now().toString(36), kind: 'new', mode, level: progress.level || 1, step: mode === 'practice' ? 'cSituation' : 'cWho',
+    mail: { compose: true, sender: null, recipients: [], asks: [] }, roles: {}, taps: {}, firstTry: {}, tries: {}, parts: {}, startedAt: Date.now() };
+  if (mode === 'practice') {
+    let n = 0; try { n = Number(localStorage.getItem('email-newpractice-n') || 0); localStorage.setItem('email-newpractice-n', n + 1); } catch (e) {}
+    const sc = NEW_PRACTICE[n % NEW_PRACTICE.length];
+    S.scenario = sc;
+    S.mail.sender = { name: `${sc.to.title} ${sc.to.lastName}`, title: sc.to.title, lastName: sc.to.lastName, email: '', isGroup: false };
+    S.mail.toRole = sc.to.role; S.mail.about = sc.to.about;
+  }
+  saveRun(); route();
 }
 function newSession(mode) {
   S = { id: Date.now().toString(36), mode, level: progress.level || 1, step: mode === 'practice' ? 'loadPractice' : 'add',
@@ -120,7 +140,10 @@ function renderHome() {
     h('div', { class: 'spread' }, h('div', { class: 'eyebrow', text: 'Email Coach' }), preview ? h('button', { class: 'linkbtn', onclick: () => { preview = false; S = null; route(); } }, 'Back to parent view') : signOutBtn()),
     h('h1', { text: `Hi, ${STUDENT_NAME}.` }),
     h('button', { class: 'btn hero', onclick: () => newSession('real') }, h('b', { text: 'Answer an email' }), h('span', { text: 'Take a screenshot of it first' })),
-    h('button', { class: 'btn', onclick: () => newSession('practice') }, h('b', { text: 'Practice email' }), h('span', { text: 'A made-up email from a teacher, to practice on' })),
+    h('button', { class: 'btn', onclick: () => newCompose('real') }, h('b', { text: 'Write a new email' }), h('span', { text: 'Missed a class, need help, want to meet' })),
+    card(h('div', { class: 'eyebrow', text: 'Practice' }), h('div', { class: 'actions two' },
+      h('button', { class: 'ghost', onclick: () => newSession('practice') }, 'Answer one'),
+      h('button', { class: 'ghost', onclick: () => newCompose('practice') }, 'Write one'))),
     card(h('div', { class: 'spread' }, h('div', { class: 'eyebrow', text: `Level ${lv} of 3` }), h('span', { class: 'chip', text: LEVELS[lv].name })),
       h('p', { text: LEVELS[lv].blurb }),
       lv < 3 ? levelMeter(st)
@@ -128,8 +151,8 @@ function renderHome() {
     card(h('h2', { text: 'Every good school email' }),
       h('ol', { class: 'recipe' },
         h('li', {}, h('b', { text: 'Greeting' }), ' Dear Mr. Lee,'),
-        h('li', {}, h('b', { text: 'Thank you' }), ' for the email or the help'),
-        h('li', {}, h('b', { text: 'Your answer' }), ' to everything they asked'),
+        h('li', {}, h('b', { text: 'Thank you' }), ' for their email (or say why you\'re writing)'),
+        h('li', {}, h('b', { text: 'Your answer' }), ' to everything they asked (or what you need)'),
         h('li', {}, h('b', { text: 'Closing line' }), ' a short wrap-up'),
         h('li', {}, h('b', { text: 'Sign-off' }), ' Thank you, then your name'))),
     h('p', { class: 'small muted center', text: `v${APP_VERSION}` }));
@@ -236,6 +259,12 @@ function renderWho() {
 }
 
 /* ---------- writing steps: understand / thanks / body / closing ---------- */
+const WRITE_NEW = {
+  subject: () => ({ title: 'Write a subject line.', sub: 'A few words that say what it\'s about, like a label. Name the class, test, or day.', rows: 1, ph: '', label: 'Subject line' }),
+  thanks: () => ({ title: 'Say why you\'re writing.', sub: 'One or two sentences. You can start with "I\'m writing to ask…" or say what happened.', rows: 2, ph: '', label: 'Why you\'re writing' }),
+  body: () => ({ title: 'Now ask for what you need.', sub: 'Give the details they need, like a day, the test, or when you\'re free. Then ask politely.', rows: 6, ph: '', label: 'What you need' }),
+  closing: () => ({ title: 'Wrap it up.', sub: 'One sentence. Thank them for their help or time.', rows: 2, ph: '', label: 'Closing line' }),
+};
 const WRITE = {
   understand: () => ({ title: `What is ${sender()} asking you?`, sub: 'Say it in your own words. If there\'s more than one thing, list them all.', rows: 3, ph: 'They want me to…', label: 'Understand it' }),
   thanks: () => ({ title: `Start by thanking ${sender()}.`, sub: 'One sentence. Thank them for the email, for letting you know, or for the specific thing.', rows: 2, ph: 'Thank you for…', label: 'Thank-you opener' }),
@@ -244,7 +273,8 @@ const WRITE = {
 };
 function sandwich(current) {
   if (level() !== 1) return null;
-  const slots = [['greeting', 'Greeting'], ['thanks', 'Thank you'], ['body', 'Your answer'], ['closing', 'Closing line'], ['signoff', 'Sign-off']];
+  const slots = isNew() ? [['greeting', 'Greeting'], ['thanks', 'Why'], ['body', 'What you need'], ['closing', 'Closing line'], ['signoff', 'Sign-off']]
+    : [['greeting', 'Greeting'], ['thanks', 'Thank you'], ['body', 'Your answer'], ['closing', 'Closing line'], ['signoff', 'Sign-off']];
   return h('div', { class: 'sandwich', 'aria-label': 'Your email so far' }, slots.map(([k, label]) => {
     const v = S.parts[k];
     return h('div', { class: 'slot' + (k === current ? ' now' : v ? ' done' : '') }, h('span', { class: 'eyebrow', text: label }),
@@ -252,7 +282,8 @@ function sandwich(current) {
   }));
 }
 function renderWrite(step) {
-  const w = WRITE[step](); const isU = step === 'understand';
+  const w = (isNew() ? WRITE_NEW : WRITE)[step](); const isU = step === 'understand';
+  const rule = isNew() ? 'new_' + step : step;
   S.tries[step] = S.tries[step] || 0;
   const ta = h('textarea', { rows: w.rows, placeholder: w.ph, autocapitalize: 'sentences', 'aria-label': w.label });
   ta.value = (isU ? S.understood : S.parts[step]) || '';
@@ -262,7 +293,7 @@ function renderWrite(step) {
   const asks = (S.mail.asks || []);
   const helpers = () => {
     extra.replaceChildren();
-    if (S.tries[step] >= 2) extra.append(h('button', { class: 'ghost', onclick: () => showExample(step, out) }, 'See an example'));
+    if (S.tries[step] >= 2) extra.append(h('button', { class: 'ghost', onclick: () => showExample(rule, out) }, 'See an example'));
     if (S.tries[step] >= 3) extra.append(h('button', { class: 'linkbtn', onclick: () => {
       if (isU) { out.replaceChildren(fb(false, `Here's what ${sender()} asked:`, h('ul', {}, asks.map(a => h('li', { text: a }))))); btn.textContent = 'Next'; btn.onclick = next; S.understood = ta.value; saveRun(); return; }
       S.parts[step] = ta.value.trim(); saveRun(); next();
@@ -273,7 +304,7 @@ function renderWrite(step) {
     if (answer.length < 3) { out.replaceChildren(fb(false, 'Write something first.')); return; }
     btn.disabled = true; out.replaceChildren(spinner('Checking…'));
     try {
-      const r = await ask('check', { step, mail: S.mail, roles: S.roles, answer, sofar: isU ? null : { greeting: S.parts.greeting, thanks: S.parts.thanks, body: S.parts.body } });
+      const r = await ask('check', { step: rule, mail: S.mail, roles: S.roles, answer, sofar: isU ? null : { greeting: S.parts.greeting, thanks: S.parts.thanks, body: S.parts.body } });
       S.tries[step]++;
       if (isU) S.understood = answer; else S.parts[step] = answer;
       saveRun();
@@ -283,7 +314,8 @@ function renderWrite(step) {
   };
   show(top('Back', back), sandwich(step),
     h('h1', { text: w.title }), h('p', { class: 'muted', text: w.sub }),
-    step === 'body' && asks.length ? card(h('div', { class: 'eyebrow', text: 'Make sure you answer' }), h('ul', { class: 'checks' }, asks.map(a => h('li', { text: a })))) : null,
+    isNew() && S.mode === 'practice' && step !== 'subject' ? situationPeek() : null,
+    step === 'body' && asks.length ? card(h('div', { class: 'eyebrow', text: isNew() ? 'Make sure you say' : 'Make sure you answer' }), h('ul', { class: 'checks' }, asks.map(a => h('li', { text: a })))) : null,
     isU ? h('details', { class: 'peek' }, h('summary', { text: 'Look at the email again' }), emailCard(S.mail)) : null,
     card(ta, h('p', { class: 'small muted tip', text: 'Tip: you can tap the microphone on the keyboard and say it.' }), out, btn, extra));
   helpers();
@@ -400,14 +432,14 @@ function renderSignoff() {
 }
 
 /* ---------- whole draft (levels 2 and 3) ---------- */
-const PART_LABEL = { greeting: 'Greeting', thanks: 'Thank you', answer: 'Answer', closing: 'Closing line', signoff: 'Sign-off', tone: 'Tone' };
+const PART_LABEL = { greeting: 'Greeting', thanks: 'Thank you', answer: 'Answer', purpose: 'Why you\'re writing', request: 'What you need', closing: 'Closing line', signoff: 'Sign-off', tone: 'Tone' };
 function renderWhole() {
   S.tries.whole = S.tries.whole || 0;
   const ta = h('textarea', { rows: 12, autocapitalize: 'sentences', 'aria-label': 'Your email' });
   ta.value = S.parts.whole || '';
   const out = h('div', { class: 'out' }), btn = h('button', { class: 'main' }, 'Check it'), extra = h('div', { class: 'actions' });
   const helpers = () => { extra.replaceChildren();
-    if (S.tries.whole >= 2) extra.append(h('button', { class: 'ghost', onclick: () => showExample('whole', out) }, 'See an example'));
+    if (S.tries.whole >= 2) extra.append(h('button', { class: 'ghost', onclick: () => showExample(isNew() ? 'new_whole' : 'whole', out) }, 'See an example'));
     if (S.tries.whole >= 3) extra.append(h('button', { class: 'linkbtn', onclick: () => { S.parts.whole = ta.value; saveRun(); next(); } }, 'Keep mine and move on')); };
   btn.onclick = async () => {
     if (ta.value.trim().length < 10) { out.replaceChildren(fb(false, 'Write your email first.')); return; }
@@ -424,15 +456,166 @@ function renderWhole() {
   const asks = S.mail.asks || [];
   show(top('Back', back), h('h1', { text: `Write your email to ${sender()}.` }),
     level() === 2 ? card(h('div', { class: 'eyebrow', text: 'Remember' }), h('ol', { class: 'recipe' },
-      h('li', { text: `Greeting (Dear ${sender()},)` }), h('li', { text: 'Thank you' }), h('li', { text: 'Your answer' }), h('li', { text: 'Closing line' }), h('li', { text: `Sign-off and your name` }))) : null,
-    level() === 2 && asks.length ? card(h('div', { class: 'eyebrow', text: 'Make sure you answer' }), h('ul', { class: 'checks' }, asks.map(a => h('li', { text: a })))) : null,
+      h('li', { text: `Greeting (Dear ${sender()},)` }), h('li', { text: isNew() ? 'Why you\'re writing' : 'Thank you' }), h('li', { text: isNew() ? 'What you need, with details' : 'Your answer' }), h('li', { text: 'Closing line' }), h('li', { text: `Sign-off and your name` }))) : null,
+    isNew() && S.mode === 'practice' ? situationPeek() : null,
+    level() === 2 && asks.length ? card(h('div', { class: 'eyebrow', text: isNew() ? 'Make sure you say' : 'Make sure you answer' }), h('ul', { class: 'checks' }, asks.map(a => h('li', { text: a })))) : null,
     card(ta, h('p', { class: 'small muted tip', text: 'Tip: you can tap the microphone on the keyboard and say it.' }), out, btn, extra));
   helpers();
 }
 
+
+/* ---------- new emails he starts himself ---------- */
+function situationCard() {
+  return card(h('div', { class: 'eyebrow', text: 'The situation' }), h('p', { class: 'situation', text: S.scenario.text }));
+}
+function situationPeek() { return h('details', { class: 'peek' }, h('summary', { text: 'The situation' }), h('p', { class: 'situation', text: S.scenario.text })); }
+function renderSituation() {
+  show(top('Home', quit), h('h1', { text: 'Practice: write a new email' }), situationCard(),
+    h('p', { class: 'muted', text: 'Read it carefully. You\'ll plan the email, then write it.' }), h('button', { class: 'main', onclick: next }, 'Start'));
+}
+function renderCWho() {
+  const m = S.mail, practice = S.mode === 'practice';
+  if (practice) {
+    return show(top('Back', back), h('h1', { text: 'Who are you writing to?' }), situationPeek(),
+      card(h('p', {}, 'You\'re writing to ', h('b', { text: displayName(m.sender) }), m.about ? ` (${m.about})` : '', '.')),
+      h('button', { class: 'main', onclick: () => { S.roles[m.sender.name] = m.toRole; next(); } }, 'Next'));
+  }
+  const st = S.who = S.who || { role: '', title: '', last: '', about: '' };
+  const go = h('button', { class: 'main' }, 'Next');
+  const check = () => { go.disabled = !(st.role && st.title && st.last.trim()); };
+  const chips = (list, key) => { const box = h('div', { class: 'choices tight' }, list.map(([id, label]) => { const b = h('button', { class: 'opt chipopt' + (st[key] === id ? ' sel' : ''), onclick: () => {
+    st[key] = id; box.querySelectorAll('button').forEach(x => x.classList.remove('sel')); b.classList.add('sel'); saveRun(); check(); } }, label); return b; })); return box; };
+  const last = h('input', { type: 'text', autocapitalize: 'words', autocomplete: 'off', placeholder: 'Last name', oninput: () => { st.last = last.value; saveRun(); check(); } });
+  last.value = st.last;
+  const about = h('input', { type: 'text', autocapitalize: 'words', autocomplete: 'off', placeholder: 'Science, math, baseball…', oninput: () => { st.about = about.value; saveRun(); } });
+  about.value = st.about;
+  go.onclick = () => {
+    const ln = st.last.trim().replace(/^./, c => c.toUpperCase());
+    m.sender = { name: `${st.title} ${ln}`, title: st.title, lastName: ln, email: '', isGroup: false };
+    m.toRole = st.role; m.about = st.about.trim(); S.roles[m.sender.name] = st.role; S.greetOpts = null; next();
+  };
+  check();
+  show(top('Home', quit), h('h1', { text: 'Who are you writing to?' }),
+    card(h('div', { class: 'f' }, 'They are your…', chips(ROLES.filter(r => r[0] !== 'parent'), 'role')),
+      h('div', { class: 'f' }, 'They go by', chips(TITLES.map(t => [t, t]), 'title')),
+      h('label', { class: 'f' }, 'Last name', last),
+      h('label', { class: 'f' }, 'Class or team (if it\'s about one)', about)), go);
+}
+function renderCExisting() {
+  const practice = S.mode === 'practice', name = displayName(S.mail.sender);
+  const want = practice ? (S.scenario.existing ? 'yes' : 'no') : null;
+  tapStep({ key: 'existing', title: 'Is there already an email about this?', sub: practice ? null : `Check your inbox for an email from ${name} about the same thing.`,
+    extra: practice ? situationPeek() : null,
+    treeNode: tree('How to decide', [
+      branch(`${name} already emailed you about it?`, 'Answer that email. Don\'t start a new one.', 'key'),
+      branch('It\'s something new?', 'Start a new email')]),
+    options: [{ id: 'no', label: 'No, this is something new' }, { id: 'yes', label: 'Yes, there\'s already an email about it' }],
+    grade: id => {
+      if (!practice) return { ok: true, title: id === 'no' ? 'Then start a new one.' : 'Then answer that email.', why: id === 'no' ? '' : 'Answering keeps it all in one conversation, so nothing gets lost.' };
+      return id === want ? { ok: true, title: id === 'no' ? 'Right, this is new.' : 'Right. Answer that email.', why: id === 'yes' ? `${name} already wrote about it, so reply to that email. A new one would split the conversation.` : '' }
+        : { ok: false, title: want === 'yes' ? `Look again: ${name} already emailed you about this.` : 'Look again: nobody has emailed you about this yet.', why: '' };
+    },
+    after: () => { const t = S.taps.existing; if (t.picks.at(-1) === 'yes') { S.step = 'cExistingYes'; saveRun(); return route(); } next(); } });
+}
+function renderCExistingYes() {
+  const practice = S.mode === 'practice';
+  show(top('Back', () => { S.step = 'cExisting'; saveRun(); route(); }), h('h1', { text: 'Answer that email instead.' }),
+    card(h('p', { text: 'Find their email, then tap Reply (or Reply all if anyone else is on it). That keeps everything in one conversation.' })),
+    practice ? h('button', { class: 'main', onclick: () => finish(true) }, 'Done') : h('button', { class: 'main', onclick: () => { S = null; saveRun(); newSession('real'); } }, 'Answer that email'));
+}
+function renderCWhy() {
+  const practice = S.mode === 'practice';
+  tapStep({ key: 'purpose', title: 'Why are you writing?', extra: practice ? situationPeek() : null,
+    options: PURPOSES.map(([id, label, sub]) => ({ id, label, sub })),
+    grade: id => {
+      if (!practice || id === S.scenario.purpose) return { ok: true, title: purposeLabel(id) + '.', why: '' };
+      return { ok: false, title: 'Read the situation again.', why: '' };
+    },
+    after: () => { S.mail.purpose = S.taps.purpose.picks.at(-1); saveRun(); next(); } });
+}
+function renderCPlan() {
+  const m = S.mail; S.tries.plan = S.tries.plan || 0;
+  const ta = h('textarea', { rows: 4, autocapitalize: 'sentences', 'aria-label': 'Your plan' }); ta.value = m.plan || '';
+  const out = h('div', { class: 'out' }), btn = h('button', { class: 'main' }, 'Check it'), extra = h('div', { class: 'actions' });
+  const helpers = () => { extra.replaceChildren();
+    if (S.tries.plan >= 2) extra.append(h('button', { class: 'ghost', onclick: () => showExample('plan', out) }, 'See an example'));
+    if (S.tries.plan >= 3 && S.planResult) extra.append(h('button', { class: 'linkbtn', onclick: () => { applyPlan(S.planResult); next(); } }, 'Keep mine and move on')); };
+  const applyPlan = r => { m.topic = r.topic; m.asks = r.mustInclude || []; m.ccMom = r.ccMom; m.ccMomWhy = r.ccMomWhy; m.ccAdvisor = r.ccAdvisor; m.ccAdvisorWhy = r.ccAdvisorWhy; m.ccTrainer = r.ccTrainer; m.ccTrainerWhy = r.ccTrainerWhy; saveRun(); };
+  btn.onclick = async () => {
+    const answer = ta.value.trim();
+    if (answer.length < 3) { out.replaceChildren(fb(false, 'Write something first.')); return; }
+    btn.disabled = true; out.replaceChildren(spinner('Checking…'));
+    try {
+      const r = await ask('plan', { mail: m, answer });
+      S.tries.plan++; m.plan = answer; S.planResult = r; saveRun();
+      if (r.ok) { applyPlan(r); out.replaceChildren(fb(true, 'Good plan.', r.feedback)); btn.textContent = 'Next'; btn.disabled = false; btn.onclick = next; ta.readOnly = true; extra.replaceChildren(); }
+      else { out.replaceChildren(fb(false, 'Not yet.', r.feedback)); btn.disabled = false; helpers(); }
+    } catch (e) { out.replaceChildren(fb(false, 'The coach didn\'t answer.', e.message)); btn.disabled = false; }
+  };
+  show(top('Back', back), h('h1', { text: `What happened, and what do you need from ${displayName(m.sender)}?` }),
+    h('p', { class: 'muted', text: PLAN_HINTS[m.purpose] || PLAN_HINTS.other }),
+    S.mode === 'practice' ? situationPeek() : null,
+    card(ta, h('p', { class: 'small muted tip', text: 'Just a few words. This is your plan, not the email. You can tap the microphone and say it.' }), out, btn, extra));
+  helpers();
+}
+function renderCCc() {
+  const m = S.mail, opts = ccChoices(m.toRole);
+  const t = S.taps.cc = S.taps.cc || { picks: [], done: false };
+  let sel = new Set(S.ccSel || []);
+  const out = h('div', { class: 'out' });
+  const nextBtn = h('button', { class: 'main', hidden: !t.done, onclick: next }, 'Next');
+  const checkBtn = h('button', { class: 'ghost', hidden: t.done }, 'Check');
+  const box = h('div', { class: 'choices long' });
+  const draw = () => box.replaceChildren(...[...opts, ['none', 'Nobody else']].map(([id, label]) => h('button', {
+    class: 'opt' + ((id === 'none' ? sel.size === 0 && S.ccTouched : sel.has(id)) ? ' sel' : ''), disabled: t.done, 'aria-pressed': String(id === 'none' ? sel.size === 0 && !!S.ccTouched : sel.has(id)),
+    onclick: () => { S.ccTouched = true; if (id === 'none') sel.clear(); else sel.has(id) ? sel.delete(id) : sel.add(id); S.ccSel = [...sel]; saveRun(); draw(); } },
+    h('b', { text: (id === 'none' ? '' : (sel.has(id) ? '☑ ' : '☐ ')) + label }))));
+  checkBtn.onclick = () => {
+    if (!S.ccTouched) { out.replaceChildren(fb(false, 'Pick who goes on Cc, or "Nobody else."')); return; }
+    const picked = [...sel]; t.picks.push(picked.join('+') || 'none');
+    const r = ccFeedback(m, picked, m.toRole);
+    if (!('cc' in S.firstTry)) S.firstTry.cc = r.ok;
+    if (r.ok) { t.done = true; S.ccPicked = picked; checkBtn.hidden = true; nextBtn.hidden = false; draw(); }
+    saveRun();
+    out.replaceChildren(fb(r.ok, r.title, r.why, r.ok ? null : h('p', { class: 'small', text: 'Change your picks and check again.' })));
+  };
+  draw();
+  if (t.done) out.append(fb(true, ccFeedback(m, S.ccPicked || [], m.toRole).title));
+  show(top('Back', back), h('h1', { text: 'Who else goes on Cc?' }), h('p', { class: 'muted', text: `${displayName(m.sender)} goes on To. Tap everyone else who should get a copy.` }),
+    tree('Copy them when', [
+      branch('Mom: meeting, missed class, test or deadline change, missing work, grades, injury, any problem', 'Cc Mom'),
+      branch('Advisor: missed test, more time or missing work, grades, a problem, missing more than a day', 'Cc advisor'),
+      branch('Trainer: writing to a coach about an injury', 'Cc trainer'),
+      branch('Extra help, a simple question, a thank-you', 'Nobody else', 'key')]),
+    card(box, checkBtn, out), nextBtn);
+}
+function renderFinalNew() {
+  const m = S.mail, text = finalText(), practice = S.mode === 'practice', cc = S.ccPicked || [];
+  const ccNames = cc.map(id => id === 'mom' ? h('span', {}, 'Mom (', h('b', { text: MOM_EMAIL }), ')') : id === 'advisor' ? 'your advisor' : 'the trainer');
+  const joinNodes = arr => arr.flatMap((x, i) => i ? [i === arr.length - 1 ? ' and ' : ', ', x] : [x]);
+  show(top('Back', back), h('h1', { text: practice ? 'Your finished email' : 'Your email is ready' }),
+    card(h('div', { class: 'eyebrow', text: 'Subject' }), h('pre', { class: 'final', text: S.parts.subject || '' }), practice ? null : copyBtn('Copy subject', S.parts.subject || ''),
+      h('div', { class: 'eyebrow', text: 'Email' }), h('pre', { class: 'final', text }), practice ? null : copyBtn('Copy email', text)),
+    card(h('div', { class: 'eyebrow', text: practice ? 'If this were real, you would…' : 'Send it' }),
+      h('ol', { class: 'howto' },
+        h('li', {}, 'Tap ', h('b', { text: 'New message' }), ' (the pencil button). This time a new message is right, because nobody has emailed you about it yet.'),
+        h('li', { text: `To: start typing ${displayName(m.sender)}'s name and pick their school email.` }),
+        cc.length ? h('li', {}, 'Cc: add ', ...joinNodes(ccNames), '.') : null,
+        h('li', { text: 'Subject: paste your subject line.' }),
+        h('li', { text: practice ? 'Paste your email.' : 'Paste your email (press and hold, then Paste).' }),
+        h('li', { text: 'Read it once from top to bottom. Then tap Send.' })),
+      cc.includes('mom') && !practice ? h('button', { class: 'ghost', onclick: async e => { try { await navigator.clipboard.writeText(MOM_EMAIL); e.target.textContent = 'Copied ✓'; } catch (x) {} } }, 'Copy Mom\'s address') : null),
+    h('button', { class: 'main', onclick: () => finish() }, practice ? 'Done' : 'I sent it'));
+}
+
 /* ---------- polish: spelling, capitals, punctuation as taps ---------- */
-function typedParts() { return level() === 1 ? { thanks: S.parts.thanks, body: S.parts.body, closing: S.parts.closing } : { whole: S.parts.whole }; }
-const prep = issues => usableIssues(issues, typedParts()).map(x => ({ ...x, options: shuffle(x.options) }));
+function typedParts() {
+  const p = level() === 1 ? { thanks: S.parts.thanks, body: S.parts.body, closing: S.parts.closing } : { whole: S.parts.whole };
+  if (isNew()) p.subject = S.parts.subject;
+  return p;
+}
+// Subject lines only get spelling fixes (no periods or sentence capitals).
+const prep = issues => usableIssues((issues || []).filter(x => x.part !== 'subject' || x.kind === 'spelling'), typedParts()).map(x => ({ ...x, options: shuffle(x.options) }));
 async function renderPolish() {
   if (!S.polish) {
     show(top('Back', back), h('h1', { text: 'Last check' }), card(spinner('Looking for spelling, capitals, and periods…')));
@@ -481,6 +664,7 @@ function copyBtn(label, text) {
   return b;
 }
 function renderFinal() {
+  if (isNew()) return renderFinalNew();
   const text = finalText(), want = correctReplyType(S.mail), cc = !S.momAlreadyOn && S.mail.ccMom;
   const practice = S.mode === 'practice';
   show(top('Back', back), h('h1', { text: practice ? 'Your finished email' : 'Your email is ready' }),
@@ -497,13 +681,19 @@ function renderFinal() {
 }
 
 /* ---------- finish: save + level ---------- */
-async function finish() {
-  S.finished = true; S.endedAt = Date.now();
+async function finish(redirected = false) {
+  S.finished = true; S.endedAt = Date.now(); if (redirected) S.redirected = true;
   const clean = isClean(S);
-  const np = nextProgress(progress, clean, tagsFor(S.mail, S.momAlreadyOn), !S.noReply);
+  const np = nextProgress(progress, clean, tagsFor(S.mail, S.momAlreadyOn), !S.noReply && !redirected);
   const m = S.mail;
-  const session = {
-    mode: S.mode, level: S.level, topic: m.topic || '', subject: m.subject || '', sender: displayName(m.sender), senderEmail: m.sender.email || '',
+  const session = isNew() ? {
+    kind: 'new', mode: S.mode, level: S.level, topic: m.topic || purposeLabel(m.purpose), subject: S.parts.subject || '', sender: displayName(m.sender), toRole: m.toRole || '',
+    purpose: m.purpose || '', plan: m.plan || '', copied: S.ccPicked || [], ccWanted: { mom: !!m.ccMom, advisor: !!m.ccAdvisor, trainer: !!m.ccTrainer },
+    decisions: Object.fromEntries(Object.entries(S.taps).map(([k, t]) => [k, { picks: t.picks, firstTry: !!S.firstTry[k] }])),
+    ccMomWanted: !!m.ccMom, tries: S.tries, polishFixes: S.polishTotal || 0,
+    final: (S.parts.subject ? 'Subject: ' + S.parts.subject + '\n\n' : '') + finalText(), clean, startedAt: S.startedAt, endedAt: S.endedAt, scenario: S.scenario ? S.scenario.text : null,
+  } : {
+    kind: 'reply', mode: S.mode, level: S.level, topic: m.topic || '', subject: m.subject || '', sender: displayName(m.sender), senderEmail: m.sender.email || '',
     roles: S.roles, copied: others(m).map(r => displayName(r)), noReply: !!S.noReply,
     decisions: Object.fromEntries(Object.entries(S.taps).map(([k, t]) => [k, { picks: t.picks, firstTry: !!S.firstTry[k] }])),
     replyWanted: correctReplyType(m), ccMomWanted: !!m.ccMom, momAlreadyOn: !!S.momAlreadyOn,
@@ -538,15 +728,17 @@ function renderParent() {
       h('div', { class: 'stat' }, h('b', { text: String(list.length - real.length) }), h('span', { text: 'Practice' })),
       h('div', { class: 'stat' }, h('b', { text: firstRight('replyType') }), h('span', { text: 'Reply button right' })),
       h('div', { class: 'stat' }, h('b', { text: firstRight('ccMom') }), h('span', { text: 'CC-Mom call right' })))),
-    card(h('h2', { text: 'Level' }), h('p', { class: 'small muted', text: `Moves up on its own after ${NEED_CLEAN} clean emails out of his last ${WINDOW} at that level, with at least ${NEED_EACH} each that needed Reply all, needed CC Mom, and had 2+ questions.` }),
+    card(h('h2', { text: 'Level' }), h('p', { class: 'small muted', text: `Moves up on its own after ${NEED_CLEAN} clean emails out of his last ${WINDOW} at that level, with at least ${NEED_EACH} each that needed Reply all, needed CC Mom, had 2+ questions, and were new emails he started.` }),
       lv < 3 ? levelMeter(standing(progress)) : null,
       h('div', { class: 'choices long' }, [1, 2, 3].map(n => h('button', { class: 'opt' + (n === lv ? ' sel' : ''), onclick: async () => {
         try { const r = await ask('setLevel', { level: n }); progress = { ...progress, level: r.level, recent: [] }; route(); } catch (e) { alert(e.message); }
       } }, h('b', { text: `${n}. ${LEVELS[n].name}` }), h('span', { text: LEVELS[n].blurb }))))),
     card(h('h2', { text: 'Recent' }), recent.length ? h('ul', { class: 'list' }, recent.map(s => h('li', {}, h('div', {},
       h('div', { class: 'row' }, h('b', { text: s.topic || s.subject || '(no subject)' }), s.mode === 'practice' ? h('span', { class: 'pill none', text: 'Practice' }) : null),
-      h('div', { class: 'small muted', text: `${s.at ? new Date(s.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''} · from ${s.sender}${s.copied && s.copied.length ? ' · copied: ' + s.copied.join(', ') : ''}` }),
+      h('div', { class: 'small muted', text: `${s.at ? new Date(s.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''} · ${s.kind === 'new' ? 'to' : 'from'} ${s.sender}${s.copied && s.copied.length ? ' · copied: ' + s.copied.join(', ') : ''}` }),
       h('div', { class: 'row pills' },
+        s.kind === 'new' ? h('span', { class: 'pill none', text: 'New email' }) : null,
+        s.decisions && s.decisions.cc ? pill(s.decisions.cc.firstTry, 'Cc' + (s.decisions.cc.firstTry ? ' ✓' : ' ✗')) : null,
         s.noReply ? h('span', { class: 'pill none', text: 'No reply needed' }) : null,
         s.decisions && s.decisions.replyType ? pill(s.decisions.replyType.firstTry, (s.replyWanted === 'reply_all' ? 'Reply all' : 'Reply') + (s.decisions.replyType.firstTry ? ' ✓' : ` (picked ${s.decisions.replyType.picks[0].replace('_', ' ')} first)`)) : null,
         s.decisions && s.decisions.ccMom ? pill(s.decisions.ccMom.firstTry, 'CC Mom: ' + (s.ccMomWanted ? 'yes' : 'no') + (s.decisions.ccMom.firstTry ? ' ✓' : ' ✗')) : null,

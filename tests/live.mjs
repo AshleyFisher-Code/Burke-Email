@@ -72,6 +72,10 @@ try {
   const pol = await run('polish', { parts });
   const usable = R.usableIssues(pol.issues, parts);
   let fixed = parts.body; for (const x of usable) fixed = R.applyFix(fixed, x.fragment, x.options.find(o => o.ok).text) ?? fixed;
+  check('polish: one tap per word (no double fixes on one word)', usable.length === (pol.issues || []).length, JSON.stringify(pol.issues));
+  // the app takes a second look after fixes, so do the same here
+  const pol2 = await run('polish', { parts: { body: fixed } });
+  for (const x of R.usableIssues(pol2.issues, { body: fixed })) fixed = R.applyFix(fixed, x.fragment, x.options.find(o => o.ok).text) ?? fixed;
   check('polish: fixes because/better', /because/.test(fixed) && /better/.test(fixed), fixed);
   check('polish: capitals Saturday and My', /Saturday/.test(fixed) && /^My/.test(fixed), fixed);
   check('polish: ends with a period', /\.$/.test(fixed.trim()), fixed);

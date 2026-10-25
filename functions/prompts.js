@@ -154,7 +154,7 @@ export const POLISH_TOOL = {
 };
 export const POLISH_RULES = `Find only mechanical mistakes in Burke's writing: misspelled words (including sound-alike mix-ups like there/their, to/too), missing capitals (start of a sentence, "I", names, days, months, Mr./Mrs.), missing end punctuation, and missing apostrophes in contractions (dont, im).
 Do not change his wording, word choice, style or grammar beyond that. If the part is not "whole", do not flag a greeting or sign-off (the app built those). For "whole", also check that the greeting ends with a comma and that Mr./Mrs. and names are capitalized.
-Each issue becomes a tap choice: the fragment is replaced by whichever option he taps. For a missing period at the end, the fragment is the last word and the right option is that word plus the period. Make each fragment appear exactly once in its part (widen it by a word if needed). Return an empty list if it's clean.`;
+Each issue becomes a tap choice: the fragment is replaced by whichever option he taps. For a missing period at the end, the fragment is the last word and the right option is that word plus the period. If one word needs more than one fix (for example a capital AND the final period, like saturday → Saturday.), make it ONE issue whose right option has every fix; never list two issues on the same words. Make each fragment appear exactly once in its part (widen it by a word if needed). Return an empty list if it's clean.`;
 
 /* ---------- 5. a made-up email for practice ---------- */
 export const PRACTICE_TOOL = { ...READ_TOOL, name: 'practice_email', description: 'A realistic made-up email to Burke for practice, described the same way as a real one.' };

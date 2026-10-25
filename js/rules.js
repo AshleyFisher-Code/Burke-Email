@@ -143,7 +143,10 @@ export function usableIssues(issues, parts) {
     if (right === x.fragment) continue;               // "fix" that changes nothing
     const key = x.part + '|' + x.fragment;
     if (seen.has(key)) continue; seen.add(key);
-    out.push({ ...x, options: opts });
+    // two fixes on overlapping words would cancel each other: keep the first
+    const s0 = text.indexOf(x.fragment), s1 = s0 + x.fragment.length;
+    if (out.some(y => y.part === x.part && y._at < s1 && s0 < y._at + y.fragment.length)) continue;
+    out.push({ ...x, options: opts, _at: s0 });
   }
   return out.slice(0, 10);
 }

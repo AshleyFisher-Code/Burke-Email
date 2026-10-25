@@ -127,6 +127,13 @@ t('usableIssues drops anything we cannot show safely', () => {
     { part: 'body', kind: 'capital', fragment: 'i will', options: [{ text: 'I will', ok: true }, { text: 'i will', ok: false }] },
   ], parts);
   assert.deepEqual(got.map(x => x.fragment), ['becuase', 'i will']);
+  // overlapping fixes on the same word: keep only the first
+  const p2 = { body: 'see you saturday' };
+  const both = R.usableIssues([
+    { part: 'body', kind: 'capital', fragment: 'saturday', options: [{ text: 'Saturday', ok: true }, { text: 'saturday', ok: false }] },
+    { part: 'body', kind: 'punctuation', fragment: 'you saturday', options: [{ text: 'you saturday.', ok: true }, { text: 'you saturday', ok: false }] },
+  ], p2);
+  assert.equal(both.length, 1);
 });
 
 t('clean: every tap right first time, no writing step at 3+ tries', () => {

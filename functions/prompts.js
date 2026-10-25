@@ -88,7 +88,7 @@ If the asks list is empty, ok = true when he says it's just information / nothin
 ok = one polite sentence that thanks them (for the email, for letting him know, for the reminder, for reaching out, for a specific thing). Fine if short. Not ok if there's no thanks, it's sarcastic, or it already starts answering the question (that goes in the next part).`,
   body: `This is the main part of his reply, after the thank-you.
 ok = it answers every item in the asks list, gives specifics the sender needs (a day, a time, what he'll bring, which option he picks), is polite, and suits everyone on the email (people were copied on purpose). Under about six sentences. No slang, no blaming, no "u"/"ur".
-If something is missing, name which ask is unanswered or what detail is missing. Ignore spelling and punctuation.`,
+A short, direct answer to each ask is enough; don't ask for more detail than the sender needs to act. If something is missing, name which ask is unanswered or what detail is missing. Ignore spelling and punctuation.`,
   closing: `This is his closing line, the last sentence before the sign-off.
 ok = one polite sentence that wraps up: thanks again, says he'll do the thing, says see you at a time, or offers to answer questions. Not ok if it's empty, rude, or a repeat of the whole answer.`,
 };
@@ -113,7 +113,7 @@ export const WHOLE_TOOL = {
 export const WHOLE_RULES = `Burke wrote his whole reply himself. Check each part and return all six items:
 - greeting: "Dear"/"Hello"/"Hi" + the right title and last name + a comma (e.g. Dear Mrs. Kent,). Not "Hey", not a first name.
 - thanks: a thank-you sentence near the start.
-- answer: answers every item in the asks list with the specifics needed.
+- answer: answers every item in the asks list. A short, direct answer to each ask is enough ("my ankle feels better" answers "how does it feel"). Only mark it not ok if an ask is unanswered or a needed specific is missing (e.g. they offered two days and he didn't pick one). Don't ask for more detail than the sender needs.
 - closing: a polite wrap-up sentence before the sign-off.
 - signoff: "Thank you," / "Best," / "Sincerely," on its own line, then "Burke".
 - tone: polite, no slang, right for everyone copied.

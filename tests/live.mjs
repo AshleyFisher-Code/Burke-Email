@@ -51,10 +51,10 @@ try {
   check('automated list notice: no reply needed', li.replyNeeded === false, li.replyWhy);
 
   const c = (step, answer) => run('check', { step, mail: ad, roles: {}, answer });
-  check('understand: half → not ok', !(await c('understand', 'he wants to know if im playing saterday')).ok);
-  check('understand: both → ok', (await c('understand', 'if im playing saterday and how my ankel feels')).ok);
-  check('thanks: "thx" → not ok', !(await c('thanks', 'thx')).ok);
-  check('thanks: proper → ok', (await c('thanks', 'Thank you for cheking on me.')).ok);
+  { const r = await c('understand', 'he wants to know if im playing saterday'); check('understand: half → not ok', !r.ok, r.feedback); }
+  { const r = await c('understand', 'if im playing saterday and how my ankel feels'); check('understand: both → ok', r.ok, r.feedback); }
+  { const r = await c('thanks', 'thx'); check('thanks: "thx" → not ok', !r.ok, r.feedback); }
+  { const r = await c('thanks', 'Thank you for cheking on me.'); check('thanks: proper → ok', r.ok, r.feedback); }
   const miss = await c('body', 'I will play Saturday.');
   check('body: missing ankle → not ok', !miss.ok, miss.feedback);
   // A starter of 4 words or fewer is allowed ("My ankle feels..."); a sentence he could copy is not.
@@ -63,7 +63,7 @@ try {
   check('body: feedback doesn\'t write it for him', !writesIt, miss.feedback);
   const sp = await c('body', 'my ankel feels alot beter becuase i iced it and i will play saterday');
   check('body: spelling mistakes still ok (dysgraphia rule)', sp.ok, sp.feedback);
-  check('closing: proper → ok', (await c('closing', 'See you at practice.')).ok);
+  { const r = await c('closing', 'See you at practice.'); check('closing: proper → ok', r.ok, r.feedback); }
 
   const w = await run('whole', { mail: ad, roles: {}, answer: 'hey mr grant my ankle is better and i will play saturday\n\nBurke' });
   const item = p => (w.items || []).find(i => i.part === p) || {};
@@ -113,13 +113,14 @@ try {
   check('rule: Cc grading agrees', R.ccFeedback(missed, ['mom'], 'teacher').ok === true);
 
   const nm = { ...lee, purpose: 'missed', plan: 'out sick tuesday, need what i missed', asks: missed.mustInclude };
-  const cn = (step, answer) => run('check', { step, mail: nm, roles: {}, answer });
-  check('new subject: "question" → not ok', !(await cn('new_subject', 'question')).ok);
-  check('new subject: specific → ok', (await cn('new_subject', 'Missed science on Tuesday')).ok);
-  check('new opener: reason → ok (no thank-you needed)', (await cn('new_thanks', 'I was absent on Tuesday becuase I was sick.')).ok);
+  const opener = 'I was absent on Tuesday because I was sick.';
+  const cn = (step, answer) => run('check', { step, mail: nm, roles: {}, answer, sofar: step === 'new_body' ? { greeting: 'Dear Mrs. Lee,', thanks: opener } : null });
+  { const r = await cn('new_subject', 'question'); check('new subject: "question" → not ok', !r.ok, r.feedback); }
+  { const r = await cn('new_subject', 'Missed science on Tuesday'); check('new subject: specific → ok', r.ok, r.feedback); }
+  { const r = await cn('new_thanks', 'I was absent on Tuesday becuase I was sick.'); check('new opener: reason → ok (no thank-you needed)', r.ok, r.feedback); }
   const vb = await cn('new_body', 'I was sick.');
   check('new body: no request → not ok', !vb.ok, vb.feedback);
-  check('new body: clear request → ok', (await cn('new_body', 'Could you tell me what I missed in class on Tuesday and if there was any homework?')).ok);
+  { const r = await cn('new_body', 'Could you tell me what I missed in class on Tuesday and if there was any homework?'); check('new body: clear request → ok', r.ok, r.feedback + '  [must say: ' + JSON.stringify(nm.asks) + ']'); }
   const nw = await run('whole', { mail: nm, roles: {}, answer: 'Dear Mrs. Lee,\n\nI was absent on Tuesday because I was sick. Could you tell me what I missed and if there was homework?\n\nThank you for your help.\n\nThank you,\nBurke' });
   check('new whole: good draft → all ok', (nw.items || []).length === 6 && nw.items.every(i => i.ok), JSON.stringify(nw.items));
   const spS = await run('polish', { parts: { subject: 'Missed sciense on Tuesday', body: 'could you tell me what i missed' } });

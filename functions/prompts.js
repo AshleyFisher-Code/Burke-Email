@@ -12,7 +12,7 @@ Hard rules:
 - Burke has dysgraphia. Never mark him wrong for spelling, capital letters or punctuation, except in the polish task, which exists only for that.
 - Talk to him directly ("you"), warmly and plainly, at a 7th-grade reading level. One or two short sentences. No exclamation-point cheerleading, no lecturing.
 - His mom's address is ${MOM_EMAIL}.
-- Texting shortcuts (u, pls, b/c, idk, gonna, tmrw, hw…) and emoji don't belong in school email. In the writing steps, if a piece has three or more shortcuts or any emoji, ok = false and ask him to spell words out / take out the emoji (the final check fixes the odd one or two, so fewer than three alone is not a reason to fail). "yeah" is too casual for a teacher.`;
+- Texting shortcuts (u, pls, b/c, idk, gonna, tmrw, hw…) and emoji don't belong in school email. In the writing steps, if a piece has three or more shortcuts or any emoji, ok = false and ask him to spell words out / take out the emoji (the final check fixes the odd one or two, so fewer than three is not by itself a reason to fail; the step's own rules still apply, e.g. a one-word answer is still too short). "yeah" is too casual for a teacher.`;
 
 /* ---------- 1. read the email from screenshots or pasted text ---------- */
 const person = {
@@ -86,7 +86,7 @@ export const STEP_RULES = {
 ok = his answer captures every item in the asks list (his words, any spelling). If he only got some, ok = false and tell him what he got and roughly where to look for the rest ("there's one more thing in the second paragraph"), without saying what it is.
 If the asks list is empty, ok = true when he says it's just information / nothing to do.`,
   thanks: `This is the first sentence of his reply: a thank-you opener.
-ok = one polite sentence that thanks them (for the email, for letting him know, for the reminder, for reaching out, for a specific thing). Fine if short. Not ok if there's no thanks, it's sarcastic, or it already starts answering the question (that goes in the next part).`,
+ok = one polite sentence that thanks them (for the email, for letting him know, for the reminder, for reaching out, for a specific thing). Fine if short, but a single word ("thanks", "thx", "ty") is not a sentence: ask him to say what he's thanking them for. Not ok if there's no thanks, it's sarcastic, or it already starts answering the question (that goes in the next part).`,
   body: `This is the main part of his reply, after the thank-you.
 ok = it answers every item in the asks list, gives specifics the sender needs (a day, a time, what he'll bring, which option he picks), is polite, and suits everyone on the email (people were copied on purpose). Under about six sentences. No slang, no blaming, no "u"/"ur".
 A short, direct answer to each ask is enough; don't ask for more detail than the sender needs to act. If something is missing, name which ask is unanswered or what detail is missing. Ignore spelling and punctuation.`,
@@ -238,7 +238,7 @@ ok = 2 to 8 words that name the topic specifically (the class, test, or day when
   new_thanks: `This is the opening of his NEW email, right after the greeting.
 ok = one or two polite sentences that say why he's writing (e.g. starting "I'm writing to ask…" or "I was absent on…"). A friendly line first ("I hope you're having a good week.") is fine, but the reason must also be there. This is not a reply, so don't require a thank-you. Not ok if the reason is missing, or it's rude or too casual.`,
   new_body: `This is the main part of his NEW email, after the opening.
-ok = it covers each item in "What the email must say" with the specifics the reader needs (which day, which test, days/times he's free), and makes a clear, polite request (a question, or "Could I…", "Would you be able to…"). Short and direct is enough. Not ok if an item is missing or there's no clear request. Ignore spelling and punctuation.`,
+ok = together with what he already wrote in his opening (shown as "what he has written so far"), it covers each item in "What the email must say" with the specifics the reader needs. Don't make him repeat something his opening already says (which day, which test, days/times he's free), and makes a clear, polite request (a question, or "Could I…", "Would you be able to…"). Short and direct is enough. Not ok if an item is missing or there's no clear request. Ignore spelling and punctuation.`,
   new_closing: `This is the closing line of his NEW email, before the sign-off.
 ok = one polite sentence that thanks them for their help or time, or says he looks forward to hearing back. Not ok if empty, rude, or a repeat of the request.`,
 });

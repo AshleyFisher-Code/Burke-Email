@@ -164,3 +164,6 @@ div.f .choices button{text-transform:none;letter-spacing:0}
 
 .choices.stack{flex-direction:column}
 .choices.stack button.opt{flex:0 0 auto;overflow-wrap:break-word;text-align:center}
+
+.peoplelist{display:flex;flex-direction:column;gap:8px}
+.peoplelist:empty{display:none}

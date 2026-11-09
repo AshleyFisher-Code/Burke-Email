@@ -19,7 +19,10 @@ export async function coachMock({ action, ...d }) {
   await wait(150);
   switch (action) {
     case 'progress': return { progress, sessions: saved.slice().reverse() };
-    case 'read': return /collapsed/.test(d.text || '') ? COLLAPSED : AD_EMAIL;
+    case 'read':
+      if (/paste-only/.test(d.text || '')) return { ...AD_EMAIL, readable: false, recipientsComplete: false, problem: 'I couldn\'t read the screenshot. Take another screenshot.',
+        sender: { name: 'Mr. Grant', email: '', title: 'Mr.', lastName: 'Grant', isGroup: false }, recipients: [] };
+      return /collapsed/.test(d.text || '') && !(d.images || []).length ? COLLAPSED : /collapsed/.test(d.text || '') ? COLLAPSED : AD_EMAIL;
     case 'practice': return { ...AD_EMAIL, practice: true, scenario: d.scenario };
     case 'plan': {
       const a = d.answer.toLowerCase();

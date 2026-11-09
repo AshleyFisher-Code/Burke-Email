@@ -83,7 +83,7 @@ const STEP_ORDER = () => {
     const write = lv === 1 ? ['greeting', 'thanks', 'body', 'closing', 'signoff'] : ['whole'];
     return [...(S.mode === 'practice' ? ['cSituation'] : []), 'cWho', 'cExisting', 'cWhy', 'cPlan', 'cCc', 'subject', ...write, 'polish', 'final'];
   }
-  const base = ['add', 'show', 'who', 'understand', 'needReply'];
+  const base = ['add', 'show', ...(S && S.mail && S.mail.needPeople ? ['people'] : []), 'who', 'understand', 'needReply'];
   if (S && S.noReply) return [...base, 'noreply'];
   const write = lv === 1 ? ['greeting', 'thanks', 'body', 'closing', 'signoff'] : ['whole'];
   return [...base, 'replyType', 'ccMom', ...write, 'polish', 'final'];
@@ -106,7 +106,7 @@ function quit() {
 function route() {
   if (role === 'parent' && !preview) return renderParent();
   if (!S) return renderHome();
-  ({ add: renderAdd, show: renderShow, who: renderWho, understand: () => renderWrite('understand'), needReply: renderNeedReply,
+  ({ add: renderAdd, show: renderShow, people: renderPeople, who: renderWho, understand: () => renderWrite('understand'), needReply: renderNeedReply,
     noreply: renderNoReply, replyType: renderReplyType, ccMom: renderCcMom, greeting: renderGreeting,
     thanks: () => renderWrite('thanks'), body: () => renderWrite('body'), closing: () => renderWrite('closing'),
     cSituation: renderSituation, cWho: renderCWho, cExisting: renderCExisting, cExistingYes: renderCExistingYes, cWhy: renderCWhy, cPlan: renderCPlan, cCc: renderCCc,
@@ -188,8 +188,20 @@ function renderAdd() {
     go.disabled = true; err.hidden = true; go.replaceWith(spinner('Reading the email…'));
     try {
       const images = await Promise.all(pending.map(p => shrink(p.file)));
+      const textOnly = !images.length;
       const mail = await ask('read', { images, text: paste.value });
-      if (!mail.readable || !mail.recipientsComplete) { S.readProblem = mail.problem || 'I couldn\'t read that. Try a clearer screenshot.'; saveRun(); return route(); }
+      const hasBody = mail && typeof mail.body === 'string' && mail.body.trim().length > 20;
+      // Pasted text from the Gmail app has no From/To/Cc lines. That's fine: we ask who was on it next.
+      if (textOnly && hasBody) mail.readable = true;
+      if (!mail.readable) {
+        S.readProblem = textOnly ? 'I couldn\'t read that text. Copy the whole email again and paste it in.' : (mail.problem || 'I couldn\'t read that. Try a clearer screenshot.');
+        saveRun(); return route();
+      }
+      if (!mail.recipientsComplete && !textOnly) { S.readProblem = mail.problem || 'Tap the little arrow next to the names at the top so everyone shows, then take the screenshot again.'; saveRun(); return route(); }
+      mail.recipients = Array.isArray(mail.recipients) ? mail.recipients : [];
+      mail.sender = mail.sender || { name: '', email: '', title: '', lastName: '', isGroup: false };
+      if (textOnly && (!mail.recipientsComplete || !mail.recipients.length || !(mail.sender.name || mail.sender.email))) mail.needPeople = true;
+      if (!mail.recipients.some(r => r.isMe)) mail.recipients.unshift({ name: 'You', email: '', title: '', lastName: '', isGroup: false, field: 'to', isMe: true, isMom: false });
       pending.forEach(p => URL.revokeObjectURL(p.url)); pending = [];
       S.mail = mail; S.readProblem = null; S.pasted = ''; S.step = 'show'; saveRun(); route();
     } catch (e) { S.readProblem = e.message; saveRun(); route(); }
@@ -235,6 +247,46 @@ function renderShow() {
 }
 
 /* ---------- 3. who's on it ---------- */
+/* ---------- pasted text: ask who was on it ---------- */
+function parsePerson(raw) {
+  const t = raw.trim().replace(/\s+/g, ' ');
+  const m = t.match(/^(Mr|Mrs|Ms|Dr|Coach)\.?\s+(.+)$/i);
+  const fix = w => w.replace(/\b\w/g, c => c.toUpperCase());
+  if (m) { const title = /^coach$/i.test(m[1]) ? 'Coach' : m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() + '.'; const ln = fix(m[2].split(' ').at(-1)); return { name: `${title} ${fix(m[2])}`, title, lastName: ln }; }
+  return { name: fix(t), title: '', lastName: fix(t.split(' ').at(-1)) };
+}
+function renderPeople() {
+  const m = S.mail;
+  const st = S.people = S.people || { from: m.sender && (m.sender.name || m.sender.email) ? '' : '', needFrom: !(m.sender && (m.sender.name || m.sender.email)), others: null, names: [''] };
+  const go = h('button', { class: 'main' }, 'Next');
+  const fromIn = h('input', { type: 'text', autocapitalize: 'words', autocomplete: 'off', placeholder: 'Mrs. Kent', oninput: () => { st.from = fromIn.value; saveRun(); check(); } });
+  fromIn.value = st.from || '';
+  const list = h('div', { class: 'peoplelist' });
+  const drawList = () => list.replaceChildren(...(st.others ? st.names.map((n, i) => {
+    const inp = h('input', { type: 'text', autocapitalize: 'words', autocomplete: 'off', placeholder: i ? 'Another name' : 'Mr. Doe', 'aria-label': 'Name ' + (i + 1), oninput: () => { st.names[i] = inp.value; saveRun(); check(); } });
+    inp.value = n; return inp;
+  }).concat([h('button', { class: 'linkbtn', onclick: () => { st.names.push(''); saveRun(); drawList(); } }, '＋ Add another person')]) : []));
+  const choice = h('div', { class: 'choices long' }, [['no', 'Just me'], ['yes', 'Other people too']].map(([id, label]) => {
+    const b = h('button', { class: 'opt' + ((st.others === (id === 'yes')) ? ' sel' : ''), onclick: () => {
+      st.others = id === 'yes'; choice.querySelectorAll('button').forEach(x => x.classList.remove('sel')); b.classList.add('sel'); saveRun(); drawList(); check(); } }, h('b', { text: label }));
+    return b;
+  }));
+  const check = () => { go.disabled = (st.needFrom && !String(st.from || '').trim()) || st.others === null || (st.others && !st.names.some(n => n.trim())); };
+  go.onclick = () => {
+    if (st.needFrom) { const p = parsePerson(st.from); m.sender = { ...m.sender, ...p, email: '', isGroup: false }; S.greetOpts = null; }
+    const me = m.recipients.find(r => r.isMe) || { name: 'You', email: '', title: '', lastName: '', isGroup: false, field: 'to', isMe: true, isMom: false };
+    const added = st.others ? st.names.map(n => n.trim()).filter(Boolean).map(n => ({ ...parsePerson(n), email: '', isGroup: false, field: 'cc', isMe: false,
+      isMom: /^(mom|my mom|mother|ashley|ashley fisher|mrs\.? fisher)$/i.test(n.trim()) })) : [];
+    m.recipients = [me, ...added];
+    m.recipientsComplete = true; saveRun(); next();
+  };
+  drawList(); check();
+  show(top('Back', back), h('h1', { text: 'Who was on the email?' }),
+    h('p', { class: 'muted', text: 'Copying the text leaves out who the email went to. Open the email, tap the little arrow ⌄ next to the names at the top, and look.' }),
+    card(st.needFrom ? h('label', { class: 'f' }, 'Who sent it?', fromIn) : null,
+      h('div', { class: 'f' }, 'Besides you, was anyone else on To or Cc?', choice), list), go);
+}
+
 function renderWho() {
   const m = S.mail;
   const people = [{ ...m.sender, field: 'from' }, ...others(m).filter(r => !r.isGroup)];

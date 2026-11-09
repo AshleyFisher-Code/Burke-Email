@@ -44,6 +44,9 @@ try {
   check('rule: AD email → Reply all', R.correctReplyType(ad) === 'reply_all', JSON.stringify(R.others(ad)));
   check('rule: Reply names the trainer', /Kent/.test(R.replyFeedback(ad, 'reply', {}).why));
 
+  const pasted = await run('read', { text: 'Hi Burke,\nYou mentioned your ankle was sore after practice. Are you planning to play Saturday? Please let us know how it feels today.\nThanks,\nMr. Grant' });
+  check('pasted text only: readable, no screenshot talk', pasted.readable && !/screenshot/i.test(pasted.problem || ''), JSON.stringify({ readable: pasted.readable, problem: pasted.problem }));
+  check('pasted text only: sender from signature', /grant/i.test((pasted.sender && (pasted.sender.lastName + pasted.sender.name)) || ''), JSON.stringify(pasted.sender));
   const th = await run('read', { text: THANKS_TEXT });
   check('thank-you note: no CC Mom', th.ccMom === false, th.ccMomWhy);
   check('thank-you note: Reply (only Burke)', R.correctReplyType(th) === 'reply');

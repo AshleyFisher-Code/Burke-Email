@@ -47,8 +47,11 @@ try {
   await see(p, 'Add the email'); await shot(p, '02-add');
   // collapsed recipients get sent back
   await p.getByText('Paste text instead').click();
+  // a screenshot with the names collapsed gets sent back
+  await p.locator('input[type=file]').setInputFiles(root + 'icons/icon-192.png');
   await p.locator('textarea').fill('collapsed email'); await tap(p, 'Read it');
   await see(p, 'Tap the little arrow');
+  await p.locator('.thumb .x').click();
   await p.locator('textarea').fill('AD email'); await tap(p, 'Read it');
   await see(p, 'Is this the email?'); await shot(p, '03-show'); await noSideScroll(p, 'show');
   await tap(p, 'Yes, that');
@@ -123,6 +126,32 @@ try {
   await see(p, 'Last check'); await polishAll(p); await tap(p, 'See your email');
   await see(p, 'Your finished email'); await see(p, 'If this were real');
   await tap(p, 'Done'); await see(p, 'Clean email.');
+
+  /* ---------- pasted text only, no From/To/Cc lines (Nov 9 bug: "couldn't read the screenshot") ---------- */
+  p = await page();
+  await tap(p, 'Answer an email'); await p.getByText('Paste text instead').click();
+  await p.locator('textarea').fill('paste-only: Hi Burke, are you playing Saturday? How is your ankle? Thanks, Mr. Grant'); await tap(p, 'Read it');
+  await see(p, 'Is this the email?');
+  assert.equal(await p.getByText(/screenshot/i).count(), 0);
+  await tap(p, 'Yes, that');
+  await see(p, 'Who was on the email?'); await shot(p, '22-pasted-people');
+  await p.getByRole('button', { name: 'Other people too' }).click();
+  await p.getByLabel('Name 1').fill('mrs kent'); await noSideScroll(p, 'people'); await tap(p, 'Next');
+  await see(p, 'Who\'s on this email?'); await see(p, 'Mrs. Kent');
+  const ps2 = p.locator('.person'); await ps2.nth(0).getByRole('button', { name: 'Coach / AD' }).click(); await ps2.nth(1).getByRole('button', { name: 'Trainer' }).click(); await tap(p, 'Next');
+  await write(p, 'if i will play saturday and how my ankle feels'); await see(p, 'Good.'); await tap(p, 'Next');
+  await p.getByRole('button', { name: 'Yes, it needs an answer' }).click(); await tap(p, 'Next');
+  await p.getByRole('button', { name: /^Reply Goes only/ }).click(); await see(p, 'Mrs. Kent (trainer)');
+  // pasted text, "just me": straight to Reply
+  p = await page();
+  await tap(p, 'Answer an email'); await p.getByText('Paste text instead').click();
+  await p.locator('textarea').fill('paste-only: Hi Burke, are you playing Saturday? How is your ankle? Thanks, Mr. Grant'); await tap(p, 'Read it');
+  await tap(p, 'Yes, that'); await see(p, 'Who was on the email?');
+  await p.getByRole('button', { name: 'Just me' }).click(); await tap(p, 'Next');
+  await see(p, 'Who\'s on this email?'); await p.locator('.person').nth(0).getByRole('button', { name: 'Coach / AD' }).click(); await tap(p, 'Next');
+  await write(p, 'if i will play saturday and how my ankle feels'); await see(p, 'Good.'); await tap(p, 'Next');
+  await p.getByRole('button', { name: 'Yes, it needs an answer' }).click(); await tap(p, 'Next');
+  await p.getByRole('button', { name: /^Reply Goes only/ }).click(); await see(p, 'Only you got this email');
 
   /* ---------- new email, level 1 practice (Mrs. Lee, missed class) ---------- */
   p = await page();

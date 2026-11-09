@@ -66,7 +66,8 @@ export const READ_INSTRUCTIONS = `Read the email Burke received (screenshots and
   false for a quick thank-you, a simple "got it", a reminder he just confirms, or routine logistics he can handle himself.
   If his mom is already on the email, ccMom is false and ccMomWhy says she's already on it, so Reply all includes her.
 - title: Mr./Mrs./Ms./Dr./Coach only when the email shows it. If the sender signs with just a name, leave title "" (the app asks Burke).
-- If the To/Cc details are collapsed, set recipientsComplete false and problem to: "Tap the little arrow next to the names at the top so everyone shows, then take the screenshot again."`;
+- If the To/Cc details are collapsed in a screenshot, set recipientsComplete false and problem to: "Tap the little arrow next to the names at the top so everyone shows, then take the screenshot again."
+- If there are NO screenshots, only pasted text: copied text often has no From/To/Cc lines. That is normal: readable stays true if the message itself is there, recipientsComplete is false when no To/Cc lines are in the text, problem is "", and the sender comes from the signature if there is one (else name ""). Never mention screenshots for pasted text.`;
 
 /* ---------- 2. check one piece of his writing ---------- */
 export const CHECK_TOOL = {

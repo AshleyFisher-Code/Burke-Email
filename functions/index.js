@@ -81,7 +81,7 @@ export const ACTIONS = {
       if (typeof b64 !== 'string' || b64.length > 6_000_000) throw new HttpsError('invalid-argument', 'That picture is too big. Try a regular screenshot.');
       content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } });
     }
-    content.push({ type: 'text', text: P.READ_INSTRUCTIONS + (text ? `\n\nPASTED TEXT:\n${text}` : '') });
+    content.push({ type: 'text', text: P.READ_INSTRUCTIONS + `\n\nINPUT: ${imgs.length ? imgs.length + ' screenshot(s)' + (text ? ' plus pasted text' : '') : 'pasted text only, no screenshots'}` + (text ? `\n\nPASTED TEXT:\n${text}` : '') });
     return callClaude(key, { content, tool: P.READ_TOOL, maxTokens: 3000 });
   },
 
